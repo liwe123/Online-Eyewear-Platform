@@ -1,0 +1,236 @@
+/* 页面整体样式 */
+body {
+    background-color: #f8f9fa;
+    font-family: "Microsoft YaHei", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+/* 卡片阴影 */
+.card {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* 按钮 hover 效果 */
+.btn-primary:hover {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transform: translateY(-2px);
+    transition: all 0.3s;
+}
+
+/* ====== CSS变量 ====== */
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --light-color: #ecf0f1;
+    --dark-color: #2c3e50;
+}
+
+/* ====== 导航栏 ====== */
+.navbar {
+    background-color: var(--primary-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* ====== 英雄区域 ====== */
+.hero-section {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    padding: 100px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255,255,255,0.1)"/></svg>');
+    background-size: cover;
+}
+
+/* ====== 特色卡片 ====== */
+.feature-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: none;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* ====== AI试戴区域 ====== */
+.ai-section {
+    background-color: white;
+    padding: 80px 0;
+}
+
+.try-on-container {
+    background-color: var(--light-color);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+/* ====== 眼镜卡片 ====== */
+.glass-card {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 100%;
+}
+
+.glass-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.glass-image {
+    height: 200px;
+    object-fit: contain;
+    padding: 15px;
+    background-color: #f8f9fa;
+}
+
+/* ====== 上传区域 ====== */
+.face-upload-area {
+    border: 2px dashed #ddd;
+    border-radius: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.face-upload-area:hover {
+    border-color: var(--secondary-color);
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.face-preview {
+    max-width: 100%;
+    border-radius: 10px;
+    display: none;
+}
+
+/* ====== 虚拟试戴 ====== */
+.virtual-try-on {
+    position: relative;
+    width: 100%;
+    height: 300px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.face-canvas {
+    width: 100%;
+    height: 100%;
+    display: none;
+}
+
+.glass-overlay {
+    position: absolute;
+    width: 80px;
+    height: 30px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 5px;
+    display: none;
+}
+
+/* ====== 进度条 ====== */
+.progress-bar-custom {
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* ====== 统计卡片 ====== */
+.stats-card {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 25px;
+}
+
+/* ====== 页脚 ====== */
+footer {
+    background-color: var(--dark-color);
+    color: white;
+    padding: 60px 0 30px;
+}
+
+.footer-links a {
+    color: #bdc3c7;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+    color: white;
+}
+
+/* ====== 标题装饰 ====== */
+.section-title {
+    position: relative;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+.section-title::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60px;
+    height: 3px;
+    background-color: var(--secondary-color);
+}
+
+.center-title::after {
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* ====== 按钮 ====== */
+.btn-primary-custom {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    padding: 10px 25px;
+    border-radius: 30px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary-custom:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* ====== AI徽章 ====== */
+.ai-badge {
+    background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* ====== 响应式 ====== */
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 60px 0;
+    }
+
+    .display-4 {
+        font-size: 2rem;
+    }
+}

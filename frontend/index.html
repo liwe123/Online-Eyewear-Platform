@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>丹智慧眼 - 丹阳眼镜产业智能化平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-glasses me-2"></i>
+                丹智慧眼
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">平台特色</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#ai-try-on">AI试戴</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#products">眼镜商城</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#about">关于我们</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <button class="btn btn-outline-light me-2">
+                        <i class="fas fa-user me-1"></i> 登录
+                    </button>
+                    <button class="btn btn-light">
+                        <i class="fas fa-shopping-cart me-1"></i> 购物车
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 英雄区域 -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-4">AI驱动的丹阳眼镜智能平台</h1>
+                    <p class="lead mb-4">基于人工智能与大数据的眼镜产业智能化识别与精准营销平台，为您提供个性化的眼镜推荐与虚拟试戴体验。</p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="#ai-try-on" class="btn btn-light btn-lg btn-primary-custom">
+                            <i class="fas fa-camera me-2"></i>立即试戴
+                        </a>
+                        <a href="#features" class="btn btn-outline-light btn-lg">
+                            了解更多 <i class="fas fa-arrow-right ms-2"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <div class="virtual-try-on mx-auto">
+                        <img src="https://images.unsplash.com/photo-1507679799987-c73779587ccf?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                            class="face-canvas" id="demo-face" alt="虚拟试戴演示">
+                        <div class="glass-overlay" id="demo-glasses"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 平台特色 -->
+    <section id="features" class="py-5">
+        <div class="container">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="section-title center-title">平台核心特色</h2>
+                    <p class="lead">结合人工智能与大数据技术，重塑眼镜选购体验</p>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="fas fa-robot fa-3x text-primary"></i>
+                            </div>
+                            <h4 class="card-title">AI智能推荐</h4>
+                            <p class="card-text">基于人脸识别技术，分析您的脸型特征，智能推荐最适合的眼镜款式，推荐准确率提升50%。</p>
+                            <div class="mt-3">
+                                <span class="ai-badge">深度学习算法</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="fas fa-vr-cardboard fa-3x text-primary"></i>
+                            </div>
+                            <h4 class="card-title">虚拟试戴</h4>
+                            <p class="card-text">上传照片即可在线试戴各种眼镜，实时查看佩戴效果，无需到店即可找到最适合的款式。</p>
+                            <div class="mt-3">
+                                <span class="ai-badge">AR技术</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="fas fa-chart-line fa-3x text-primary"></i>
+                            </div>
+                            <h4 class="card-title">精准营销</h4>
+                            <p class="card-text">基于用户行为数据分析，提供个性化推荐与营销策略，提升用户转化率与复购率。</p>
+                            <div class="mt-3">
+                                <span class="ai-badge">大数据分析</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI试戴区域 -->
+    <section id="ai-try-on" class="ai-section">
+        <div class="container">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="section-title center-title">AI智能试戴</h2>
+                    <p class="lead">上传照片，体验AI驱动的智能眼镜推荐与虚拟试戴</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="try-on-container h-100">
+                        <h4 class="mb-4">上传照片进行智能分析</h4>
+                        <div class="face-upload-area mb-4" id="upload-area">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <p class="mb-2">点击或拖拽上传正脸照片</p>
+                            <p class="text-muted small">支持 JPG、PNG 格式，文件大小不超过5MB</p>
+                            <input type="file" id="face-upload" accept="image/*" class="d-none">
+                        </div>
+                        <img id="face-preview" class="face-preview img-fluid mb-4" alt="上传的照片预览">
+
+                        <div class="mb-4">
+                            <h5>视力数据</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">左眼度数</label>
+                                    <input type="number" class="form-control" id="left-eye" placeholder="-2.50">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">右眼度数</label>
+                                    <input type="number" class="form-control" id="right-eye" placeholder="-2.75">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">瞳距(mm)</label>
+                                    <input type="number" class="form-control" id="pupil-distance" placeholder="64">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary-custom w-100" id="analyze-btn">
+                            <i class="fas fa-magic me-2"></i> AI智能分析
+                        </button>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="try-on-container h-100">
+                        <h4 class="mb-4">虚拟试戴效果</h4>
+                        <div class="virtual-try-on mb-4">
+                            <canvas id="face-canvas" class="face-canvas"></canvas>
+                            <div class="glass-overlay" id="glass-overlay"></div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5>AI分析结果</h5>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <span id="analysis-result">请上传照片并点击分析按钮</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6>脸型匹配度</h6>
+                                <div class="progress progress-bar-custom mb-2" style="height: 8px;">
+                                    <div id="match-progress" class="progress-bar bg-success" role="progressbar"
+                                        style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline-primary" id="try-another">
+                                <i class="fas fa-random me-1"></i> 换一款
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 推荐眼镜 -->
+    <section id="products" class="py-5 bg-light">
+        <div class="container">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="section-title center-title">AI推荐眼镜</h2>
+                    <p class="lead">基于您的脸型与偏好智能推荐的眼镜款式</p>
+                </div>
+            </div>
+            <div class="row g-4" id="recommended-glasses">
+                <!-- 推荐眼镜将通过JS动态加载 -->
+            </div>
+        </div>
+    </section>
+
+    <!-- 数据统计 -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row g-4">
+                <div class="col-md-3 col-6">
+                    <div class="stats-card text-center">
+                        <h3 class="display-4 fw-bold">5000+</h3>
+                        <p class="mb-0">眼镜款式</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stats-card text-center">
+                        <h3 class="display-4 fw-bold">98%</h3>
+                        <p class="mb-0">用户满意度</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stats-card text-center">
+                        <h3 class="display-4 fw-bold">50%</h3>
+                        <p class="mb-0">推荐准确率提升</p>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stats-card text-center">
+                        <h3 class="display-4 fw-bold">65%</h3>
+                        <p class="mb-0">复购率提升</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 关于我们 -->
+    <section id="about" class="py-5">
+        <div class="container">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="section-title center-title">关于丹智慧眼</h2>
+                </div>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h3 class="mb-4">丹阳眼镜产业智能化升级平台</h3>
+                    <p class="mb-4">"丹智慧眼"是基于AI与大数据的丹阳眼镜产业智能化识别与精准营销平台，旨在通过人工智能技术重构眼镜产业生态，提升用户体验与产业效率。</p>
+                    <p class="mb-4">平台整合了人脸识别、虚拟试戴、智能推荐等先进技术，为用户提供个性化的眼镜选购体验，同时为丹阳眼镜企业提供精准营销与数据洞察服务。</p>
+                    <div class="d-flex gap-3">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-check-circle text-success fa-2x"></i>
+                        </div>
+                        <div>
+                            <h5>技术创新</h5>
+                            <p class="mb-0">采用最新AI算法与大数据分析技术</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                                class="img-fluid rounded" alt="眼镜制作">
+                        </div>
+                        <div class="col-6">
+                            <img src="https://images.unsplash.com/photo-1591073113125-e46713c829ed?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                                class="img-fluid rounded" alt="眼镜展示">
+                        </div>
+                        <div class="col-6 mt-4">
+                            <img src="https://images.unsplash.com/photo-1559056199-641a0ac8b55e?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                                class="img-fluid rounded" alt="智能验光">
+                        </div>
+                        <div class="col-6 mt-4">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                                class="img-fluid rounded" alt="用户体验">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <h4 class="mb-3">
+                        <i class="fas fa-glasses me-2"></i>丹智慧眼
+                    </h4>
+                    <p class="mb-3">基于AI与大数据的丹阳眼镜产业智能化识别与精准营销平台。</p>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="text-light"><i class="fab fa-weixin fa-lg"></i></a>
+                        <a href="#" class="text-light"><i class="fab fa-weibo fa-lg"></i></a>
+                        <a href="#" class="text-light"><i class="fab fa-qq fa-lg"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-6 mb-4 mb-lg-0">
+                    <h5 class="mb-3">快速链接</h5>
+                    <div class="footer-links d-flex flex-column">
+                        <a href="#" class="mb-2">首页</a>
+                        <a href="#features" class="mb-2">平台特色</a>
+                        <a href="#ai-try-on" class="mb-2">AI试戴</a>
+                        <a href="#products" class="mb-2">眼镜商城</a>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-6 mb-4 mb-lg-0">
+                    <h5 class="mb-3">联系我们</h5>
+                    <div class="footer-links d-flex flex-column">
+                        <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i>江苏省丹阳市眼镜产业园区</p>
+                        <p class="mb-2"><i class="fas fa-phone me-2"></i>400-123-4567</p>
+                        <p class="mb-2"><i class="fas fa-envelope me-2"></i>contact@danzhihuiyan.com</p>
+                    </div>
+                </div>
+                <div class="col-lg-3">
+                    <h5 class="mb-3">订阅资讯</h5>
+                    <p class="mb-3">订阅我们的新闻通讯，获取最新产品与优惠信息</p>
+                    <div class="input-group">
+                        <input type="email" class="form-control" placeholder="您的邮箱地址">
+                        <button class="btn btn-primary-custom" type="button">订阅</button>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-5">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-center text-md-start">
+                    <p class="mb-0">? 2025 丹智慧眼. 南京师范大学中北学院大创项目</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <div class="footer-links d-inline-flex gap-3">
+                        <a href="#" class="mb-0">隐私政策</a>
+                        <a href="#" class="mb-0">使用条款</a>
+                        <a href="#" class="mb-0">网站地图</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function () {
+            // 加载默认提示（无数据时显示）
+            loadRecommendedGlasses([]);
+
+            // 上传区域点击事件
+            const uploadArea = document.getElementById('upload-area');
+            const fileInput = document.getElementById('face-upload');
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // 处理文件选择（预览图片）
+            fileInput.addEventListener('change', function (e) {
+                if (e.target.files && e.target.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const preview = document.getElementById('face-preview');
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                }
+            });
+
+            // 核心：点击“AI智能分析”按钮，调用后端API
+            document.getElementById('analyze-btn').addEventListener('click', async function () {
+                const facePreview = document.getElementById('face-preview');
+                if (facePreview.style.display !== 'block') {
+                    alert('请先上传照片！');
+                    return;
+                }
+
+                // 获取验光数据
+                const leftEye = parseFloat(document.getElementById('left-eye').value) || 0;
+                const rightEye = parseFloat(document.getElementById('right-eye').value) || 0;
+                const pupilDistance = parseFloat(document.getElementById('pupil-distance').value) || 0;
+                // 后端需要的近视度数取平均值（根据实际需求调整）
+                const myopiaDegree = (leftEye + rightEye) / 2;
+
+                // 构建FormData（包含图片和表单数据）
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]); // 上传的图片文件
+                formData.append('pupil_distance', pupilDistance);
+                formData.append('corneal_curvature', 43.0); // 示例值，可改为输入项
+                formData.append('myopia_degree', myopiaDegree);
+
+                try {
+                    // 调用后端API（注意后端地址与端口）
+                    const response = await fetch('http://localhost:5000/api/user/submit', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (result.code === 200) {
+                        // 显示分析结果
+                        document.getElementById('analysis-result').textContent = 
+                            `分析完成！检测到您的脸型为${result.data.face_shape}，为您推荐以下眼镜。`;
+                        // 显示匹配度（示例值）
+                        document.getElementById('match-progress').style.width = "92%";
+                        // 加载推荐的眼镜
+                        loadRecommendedGlasses(result.data.recommendation);
+                        // 显示虚拟试戴（简化版）
+                        showVirtualTryOn(facePreview.src, result.data.recommendation[0].image_url);
+                    } else {
+                        alert(`错误：${result.msg}`);
+                    }
+                } catch (error) {
+                    console.error('API调用失败：', error);
+                    alert('后端服务未启动或网络错误，请检查后端是否运行');
+                }
+            });
+
+            // 换一款按钮点击事件
+            document.getElementById('try-another').addEventListener('click', function () {
+                const glassOverlay = document.getElementById('glass-overlay');
+                if (glassOverlay.style.display === 'none') return;
+
+                // 随机改变眼镜位置和大小，模拟更换眼镜
+                const randomWidth = 70 + Math.random() * 30;
+                const randomHeight = 25 + Math.random() * 15;
+                const randomLeft = 50 + Math.random() * 100;
+                const randomTop = 50 + Math.random() * 50;
+
+                glassOverlay.style.width = randomWidth + 'px';
+                glassOverlay.style.height = randomHeight + 'px';
+                glassOverlay.style.left = randomLeft + 'px';
+                glassOverlay.style.top = randomTop + 'px';
+            });
+
+            // 演示虚拟试戴
+            setTimeout(function () {
+                document.getElementById('demo-face').style.display = 'block';
+                document.getElementById('demo-glasses').style.display = 'block';
+            }, 1000);
+        });
+
+        // 显示虚拟试戴（简化版：在人脸图片上叠加眼镜图片）
+        function showVirtualTryOn(faceUrl, glassUrl) {
+            const canvas = document.getElementById('face-canvas');
+            const ctx = canvas.getContext('2d');
+            const faceImg = new Image();
+            const glassImg = new Image();
+
+            faceImg.crossOrigin = 'anonymous';
+            glassImg.crossOrigin = 'anonymous';
+
+            faceImg.onload = function () {
+                canvas.width = faceImg.width;
+                canvas.height = faceImg.height;
+                ctx.drawImage(faceImg, 0, 0);
+                
+                // 加载眼镜图片并叠加
+                glassImg.onload = function () {
+                    // 调整眼镜大小和位置（根据人脸比例）
+                    const glassWidth = faceImg.width * 0.6;
+                    const glassHeight = glassImg.height * (glassWidth / glassImg.width);
+                    const glassX = (faceImg.width - glassWidth) / 2;
+                    const glassY = (faceImg.height * 0.35); // 大致在眼睛位置
+                    ctx.drawImage(glassImg, glassX, glassY, glassWidth, glassHeight);
+                };
+                glassImg.src = glassUrl;
+            };
+            faceImg.src = faceUrl;
+            canvas.style.display = 'block';
+        }
+
+        // 加载推荐的眼镜列表
+        function loadRecommendedGlasses(recommendations) {
+            const container = document.getElementById('recommended-glasses');
+            container.innerHTML = '';
+
+            if (recommendations.length === 0) {
+                container.innerHTML = '<p class="text-center col-12">请上传照片并分析，获取个性化推荐</p>';
+                return;
+            }
+
+            recommendations.forEach(glass => {
+                const col = document.createElement('div');
+                col.className = 'col-md-4 col-lg-4';
+                col.innerHTML = `
+                    <div class="card glass-card">
+                        <img src="${glass.image_url}" class="card-img-top glass-image" alt="${glass.frame_shape}眼镜">
+                        <div class="card-body">
+                            <h5 class="card-title">${glass.frame_shape}眼镜</h5>
+                            <p class="card-text text-muted">${glass.frame_material} | 折射率: ${glass.lens_refractive_index}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="h5 text-primary mb-0">?${glass.price}</span>
+                                <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="showVirtualTryOn(document.getElementById('face-preview').src, '${glass.image_url}')">
+                                    立即试戴
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,7 @@
+glasses_id,frame_shape,frame_size,frame_material,lens_degree_min,lens_degree_max,lens_refractive_index,price,image_url
+1,方形,52-18-140,复合板材,-10.00,-1.00,1.74,399,https://img11.360buyimg.com/n1/jfs/t1/195622/33/25444/123456/6478a12345678/abc123.jpg
+2,圆形,50-19-145,TR90,-8.00,-0.50,1.60,299,https://img12.360buyimg.com/n1/jfs/t1/185622/34/25445/123457/6478a12345679/abc124.jpg
+3,猫眼形,54-17-142,钛合金, -12.00,-2.00,1.74,499,https://img13.360buyimg.com/n1/jfs/t1/175622/35/25446/123458/6478a12345680/abc125.jpg
+4,长方形,55-16-143,不锈钢,-6.00,-1.50,1.67,359,https://img14.360buyimg.com/n1/jfs/t1/165622/36/25447/123459/6478a12345681/abc126.jpg
+5,方形,53-18-141,纯钛合金,-9.00,-2.50,1.74,429,https://img15.360buyimg.com/n1/jfs/t1/155622/37/25448/123460/6478a12345682/abc127.jpg
+6,圆形,49-20-144,超轻铝镁,-7.00,-0.75,1.56,279,https://img16.360buyimg.com/n1/jfs/t1/145622/38/25449/123461/6478a12345683/abc128.jpg

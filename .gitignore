@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 数据库
+data/backend.db
+*.sqlite3
+
+# 模型文件 (训练产物)
+model/*.pth
+model/*.pkl
+model/*.pt
+
+# 爬取数据(可重新生成)
+pdd_glasses_data.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志
+*.log
+
+# 环境变量
+.env
+.env.local

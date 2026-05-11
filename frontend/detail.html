@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>眼镜详情 - 丹智慧眼</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <a href="index.html" class="btn btn-secondary mb-3">返回首页</a>
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <!-- 眼镜图片 -->
+                    <div class="col-md-4">
+                        <img id="glassesImage" src="" alt="眼镜图片" class="img-fluid rounded shadow">
+                    </div>
+                    <!-- 眼镜详情 -->
+                    <div class="col-md-8">
+                        <h3 id="glassesTitle" class="mb-4"></h3>
+                        <table class="table table-borderless mt-4">
+                            <tr>
+                                <td class="fw-bold">镜框形状</td>
+                                <td id="frameShape"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">镜框尺寸</td>
+                                <td id="frameSize"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">镜框材质</td>
+                                <td id="frameMaterial"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">镜片适用度数</td>
+                                <td id="lensDegree"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">镜片折射率</td>
+                                <td id="lensRefractiveIndex"></td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">价格</td>
+                                <td id="price" class="text-danger fw-bold"></td>
+                            </tr>
+                        </table>
+                        <button class="btn btn-primary mt-3">
+                            <i class="fas fa-shopping-cart me-1"></i> 加入购物车
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // 从URL获取眼镜ID（如：detail.html?glasses_id=pdd_1）
+        const urlParams = new URLSearchParams(window.location.search);
+        const glassesId = urlParams.get("glasses_id");
+        
+        // 如果没有眼镜ID，返回首页
+        if (!glassesId) {
+            alert("缺少眼镜ID参数");
+            window.location.href = "index.html";
+        }
+        
+        // 调用后端接口获取详情
+        axios.get(`http://localhost:5000/api/glasses/detail?glasses_id=${glassesId}`)
+            .then(response => {
+                const data = response.data.data;
+                // 填充页面数据
+                document.getElementById("glassesTitle").textContent = `${data.frame_shape} 眼镜 (ID: ${data.glasses_id})`;
+                document.getElementById("glassesImage").src = data.image_url;
+                document.getElementById("frameShape").textContent = data.frame_shape;
+                document.getElementById("frameSize").textContent = data.frame_size;
+                document.getElementById("frameMaterial").textContent = data.frame_material;
+                document.getElementById("lensDegree").textContent = `${data.lens_degree_min}至${data.lens_degree_max}度`;
+                document.getElementById("lensRefractiveIndex").textContent = data.lens_refractive_index;
+                document.getElementById("price").textContent = `¥${data.price.toFixed(2)}`;
+                
+                // 处理图片加载失败
+                document.getElementById("glassesImage").onerror = function() {
+                    this.src = "https://via.placeholder.com/300?text=图片加载失败";
+                };
+            })
+            .catch(error => {
+                console.error("获取详情失败：", error);
+                alert("获取详情失败：" + (error.response?.data?.msg || "服务器错误"));
+                window.location.href = "index.html";
+            });
+    </script>
+</body>
+</html>
