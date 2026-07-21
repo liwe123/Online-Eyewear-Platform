@@ -12,8 +12,18 @@ from flask_cors import CORS
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
+# 允许的图片格式
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _allowed_image(filename):
+    """校验图片文件扩展名"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 app = Flask(__name__)
-CORS(app, origins=["http://127.0.0.1:5500", "http://localhost:5500"])
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500").split(",")
+CORS(app, origins=CORS_ORIGINS)
 
 # 配置数据库路径
 BASE_DIR = Path(__file__).parent.parent
@@ -56,6 +66,23 @@ class RecommendRecord(db.Model):
     create_time = db.Column(db.DateTime, default=datetime.now)  # 创建时间
 
 # 初始化数据库函数
+def _load_glasses_from_df(glasses_df):
+    """将 DataFrame 中的眼镜数据导入数据库"""
+    for _, row in glasses_df.iterrows():
+        glass = Glasses(
+            glasses_id=row["glasses_id"],
+            frame_shape=row["frame_shape"],
+            frame_size=row["frame_size"],
+            frame_material=row["frame_material"],
+            lens_degree_min=float(row["lens_degree_min"]),
+            lens_degree_max=float(row["lens_degree_max"]),
+            lens_refractive_index=float(row["lens_refractive_index"]),
+            price=float(row["price"]),
+            image_url=row["image_url"]
+        )
+        db.session.add(glass)
+    db.session.commit()
+
 def init_db():
     """创建数据库表并从CSV加载眼镜数据"""
     with app.app_context():
@@ -66,45 +93,18 @@ def init_db():
             if not csv_path.exists():
                 logger.warning("glasses_data.csv 不存在，跳过数据导入")
                 return
-            try:
-                glasses_df = pd.read_csv(csv_path, encoding="utf-8")
-                for _, row in glasses_df.iterrows():
-                    glass = Glasses(
-                        glasses_id=row["glasses_id"],
-                        frame_shape=row["frame_shape"],
-                        frame_size=row["frame_size"],
-                        frame_material=row["frame_material"],
-                        lens_degree_min=float(row["lens_degree_min"]),
-                        lens_degree_max=float(row["lens_degree_max"]),
-                        lens_refractive_index=float(row["lens_refractive_index"]),
-                        price=float(row["price"]),
-                        image_url=row["image_url"]
-                    )
-                    db.session.add(glass)
-                db.session.commit()
-                logger.info("数据库初始化成功，已加载眼镜数据")
-            except UnicodeDecodeError:
+            for encoding in ("utf-8", "gbk"):
                 try:
-                    glasses_df = pd.read_csv(csv_path, encoding="gbk")
-                    for _, row in glasses_df.iterrows():
-                        glass = Glasses(
-                            glasses_id=row["glasses_id"],
-                            frame_shape=row["frame_shape"],
-                            frame_size=row["frame_size"],
-                            frame_material=row["frame_material"],
-                            lens_degree_min=float(row["lens_degree_min"]),
-                            lens_degree_max=float(row["lens_degree_max"]),
-                            lens_refractive_index=float(row["lens_refractive_index"]),
-                            price=float(row["price"]),
-                            image_url=row["image_url"]
-                        )
-                        db.session.add(glass)
-                    db.session.commit()
-                    logger.info("数据库初始化成功（GBK编码），已加载眼镜数据")
+                    glasses_df = pd.read_csv(csv_path, encoding=encoding)
+                    _load_glasses_from_df(glasses_df)
+                    logger.info(f"数据库初始化成功（{encoding}编码），已加载眼镜数据")
+                    return
+                except UnicodeDecodeError:
+                    continue
                 except Exception as e:
-                    logger.error(f"加载眼镜数据失败(GBK)：{e}")
-            except Exception as e:
-                logger.error(f"加载眼镜数据失败：{e}")
+                    logger.error(f"加载眼镜数据失败({encoding})：{e}")
+                    return
+            logger.error("加载眼镜数据失败：不支持的编码格式")
 
 # 接口定义
 @app.post("/api/user/submit")
@@ -114,15 +114,21 @@ def user_submit():
     请求格式：form-data包含image（图片）、pupil_distance、corneal_curvature、myopia_degree
     """
     try:
+        # ---------- 1. 请求参数校验 ----------
         if "image" not in request.files:
             return jsonify({"code": 400, "msg": "缺少图片文件"})
         image_file = request.files["image"]
-        if image_file.filename == "":
+        if not image_file.filename:
             return jsonify({"code": 400, "msg": "未选择图片"})
+        if not _allowed_image(image_file.filename):
+            return jsonify({"code": 400, "msg": f"不支持的图片格式，仅支持: {', '.join(ALLOWED_EXTENSIONS)}"})
 
-        pupil_distance = float(request.form.get("pupil_distance", 0))
-        corneal_curvature = float(request.form.get("corneal_curvature", 0))
-        myopia_degree = float(request.form.get("myopia_degree", 0))
+        try:
+            pupil_distance = float(request.form.get("pupil_distance", 0))
+            corneal_curvature = float(request.form.get("corneal_curvature", 0))
+            myopia_degree = float(request.form.get("myopia_degree", 0))
+        except (ValueError, TypeError):
+            return jsonify({"code": 400, "msg": "眼部参数必须为有效数字"})
 
         if not (30 <= pupil_distance <= 80):
             return jsonify({"code": 400, "msg": "瞳距数据异常，范围应为30-80mm"})
@@ -131,18 +137,12 @@ def user_submit():
         if not (-20 <= myopia_degree <= 10):
             return jsonify({"code": 400, "msg": "近视度数数据异常，范围应为-20~10"})
 
-        user = User(
-            pupil_distance=pupil_distance,
-            corneal_curvature=corneal_curvature,
-            myopia_degree=myopia_degree
-        )
-        db.session.add(user)
-        db.session.commit()
-        user_id = user.id
-
+        # ---------- 2. 读取图片并校验大小 ----------
         image_bytes = image_file.read()
-        image_file.seek(0)
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            return jsonify({"code": 400, "msg": f"图片大小超过限制（最大{MAX_IMAGE_SIZE // (1024*1024)}MB）"})
 
+        # ---------- 3. 调用模型API识别脸型 ----------
         face_shape_response = requests.post(
             f"{MODEL_API_URL}/predict_face_shape",
             files={"file": (image_file.filename, image_bytes, image_file.content_type)},
@@ -156,6 +156,7 @@ def user_submit():
             return jsonify({"code": 400, "msg": face_shape_data.get("msg", "脸型识别失败")})
         face_shape = face_shape_data["face_shape"]
 
+        # ---------- 4. 调用模型API获取推荐 ----------
         recommend_response = requests.post(
             f"{MODEL_API_URL}/get_recommendation",
             json={
@@ -174,6 +175,16 @@ def user_submit():
             return jsonify({"code": 400, "msg": recommend_data.get("msg", "推荐失败")})
         recommendation = recommend_data["recommendation"]
 
+        # ---------- 5. 所有远程调用成功后再写入数据库 ----------
+        user = User(
+            pupil_distance=pupil_distance,
+            corneal_curvature=corneal_curvature,
+            myopia_degree=myopia_degree
+        )
+        db.session.add(user)
+        db.session.flush()
+        user_id = user.id
+
         glasses_ids = ",".join([item["glasses_id"] for item in recommendation])
         record = RecommendRecord(
             user_id=user_id,
@@ -183,6 +194,7 @@ def user_submit():
         db.session.add(record)
         db.session.commit()
 
+        logger.info(f"用户{user_id}推荐完成，脸型={face_shape}，推荐{len(recommendation)}款眼镜")
         return jsonify({
             "code": 200,
             "msg": "提交成功",
@@ -198,10 +210,10 @@ def user_submit():
     except requests.exceptions.ConnectionError:
         db.session.rollback()
         return jsonify({"code": 500, "msg": "模型服务连接失败，请检查服务是否启动"})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         logger.exception("用户提交接口异常")
-        return jsonify({"code": 500, "msg": f"服务器错误：{str(e)}"})
+        return jsonify({"code": 500, "msg": "服务器内部错误，请稍后重试"})
 
 @app.get("/api/glasses/detail")
 def glasses_detail():
@@ -232,4 +244,5 @@ def glasses_detail():
 if __name__ == "__main__":
     init_db()
     logger.info(f"Flask 后端服务启动，端口: {BACKEND_PORT}")
-    app.run(host="0.0.0.0", port=BACKEND_PORT, debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=BACKEND_PORT, debug=debug_mode)

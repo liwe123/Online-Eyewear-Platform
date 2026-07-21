@@ -5,38 +5,65 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+*.egg
 
 # 虚拟环境
 .venv/
 venv/
 env/
+.conda/
 
 # 数据库
 data/backend.db
 *.sqlite3
+*.db-journal
+*.db-wal
 
 # 模型文件 (训练产物)
 model/*.pth
 model/*.pkl
 model/*.pt
+model/*.onnx
+model/*.h5
+model/*.keras
 
 # 爬取数据(可重新生成)
 pdd_glasses_data.csv
+*.tmp.csv
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-*
+.cursor/
+*.code-workspace
 
 # 操作系统
 .DS_Store
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
 
 # 日志
 *.log
+logs/
 
 # 环境变量
 .env
 .env.local
+.env.*.local
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# 上传目录
+uploads/

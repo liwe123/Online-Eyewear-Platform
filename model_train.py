@@ -44,14 +44,13 @@ class FaceDataset(Dataset):
         # 使用MTCNN检测人脸并裁剪（如未检测到则使用原图缩放）
         face = self.mtcnn(img)
         if face is None:
-            # 未检测到人脸时，缩放原图为160x160
-            face = torch.tensor(
-                cv2.resize(np.array(img), (160, 160)),
-                dtype=torch.float32
-            ).permute(2, 0, 1) / 255.0  # 转换为[C, H, W]并归一化到0-1
+            # 未检测到人脸时，缩放原图为160x160并归一化到 [-1, 1]
+            img_resized = cv2.resize(np.array(img), (160, 160))
+            face = torch.tensor(img_resized, dtype=torch.float32).permute(2, 0, 1)
+            face = (face / 127.5) - 1.0  # 转换为[-1, 1]范围
         else:
-            # 检测到人脸时，直接归一化
-            face = face.to(dtype=torch.float32) / 255.0
+            # 检测到人脸时，MTCNN输出已经在 [-1, 1] 范围，直接使用
+            face = face.to(dtype=torch.float32)
         
         # 转换标签为张量
         label = torch.tensor(self.labels[idx], dtype=torch.long)
@@ -136,14 +135,47 @@ print("训练完成，模型已保存至 ./model/face_shape_model.pth")
 
 # -------------------------- 5. 训练推荐模型 --------------------------
 from sklearn.tree import DecisionTreeClassifier
+import pandas as pd
 
-# 生成模拟的推荐训练数据（实际应用中应替换为真实数据）
-# 特征：[瞳距, 角膜曲率, 近视度数]，标签：脸型索引（0-3）
-X_recommend = np.random.rand(100, 3) * [10, 5, -1000]  # 100条模拟数据
-y_recommend = np.random.randint(0, 4, 100)  # 随机标签（0-3对应4种脸型）
+# 读取真实的眼部数据
+try:
+    eye_df = pd.read_csv("./data/user_eye_data.csv")
+    print("成功加载真实眼部数据进行推荐模型训练")
+    
+    # 提取特征
+    X_recommend = eye_df[["pupil_distance", "corneal_curvature", "myopia_degree"]].values
+    
+    # 构建合理的伪标签（0: fangxing, 1: yuanxing, 2: edanlian, 3: changfangxing）
+    # 简单的业务规则：
+    # - 高度近视 (myopia_degree < -6.0) 推荐圆框(1)或鹅蛋脸框(2)以减小边缘厚度
+    # - 瞳距较大 (pupil_distance > 64) 推荐方框(0)或长方框(3)
+    # - 其他情况随机分配或结合曲率
+    y_recommend = []
+    for index, row in eye_df.iterrows():
+        pd_val = row["pupil_distance"]
+        myopia = row["myopia_degree"]
+        
+        if myopia < -6.0:
+            y_recommend.append(1 if pd_val < 60 else 2)
+        elif pd_val > 64:
+            y_recommend.append(0 if myopia > -3.0 else 3)
+        else:
+            y_recommend.append(np.random.randint(0, 4))
+            
+    y_recommend = np.array(y_recommend)
+
+except Exception as e:
+    print(f"读取 user_eye_data.csv 失败，使用备用随机数据: {e}")
+    # 备用：生成模拟的推荐训练数据，但使用更合理的数值范围
+    X_recommend = np.column_stack((
+        np.random.uniform(50, 75, 100),       # 瞳距: 50-75
+        np.random.uniform(39, 47, 100),       # 曲率: 39-47
+        np.random.uniform(-10, 0, 100)        # 近视度数: -10~0
+    ))
+    y_recommend = np.random.randint(0, 4, 100)
 
 # 训练决策树推荐模型
-recommend_model = DecisionTreeClassifier()
+recommend_model = DecisionTreeClassifier(max_depth=5, random_state=42)
 recommend_model.fit(X_recommend, y_recommend)
 
 # 保存推荐模型

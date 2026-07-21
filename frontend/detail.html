@@ -6,11 +6,12 @@
     <title>眼镜详情 - 丹智慧眼</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <a href="index.html" class="btn btn-secondary mb-3">返回首页</a>
-        <div class="card">
+    <div class="detail-container">
+        <a href="index.html" class="btn btn-secondary mb-3">← 返回首页</a>
+        <div class="detail-card">
             <div class="card-body">
                 <div class="row">
                     <!-- 眼镜图片 -->
@@ -57,6 +58,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
+        // API 地址自动检测
+        const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+            ? `http://${window.location.hostname}:5000`
+            : `${window.location.protocol}//${window.location.hostname}`;
+
         // 从URL获取眼镜ID（如：detail.html?glasses_id=pdd_1）
         const urlParams = new URLSearchParams(window.location.search);
         const glassesId = urlParams.get("glasses_id");
@@ -68,7 +74,7 @@
         }
         
         // 调用后端接口获取详情
-        axios.get(`http://localhost:5000/api/glasses/detail?glasses_id=${glassesId}`)
+        axios.get(`${API_BASE}/api/glasses/detail?glasses_id=${glassesId}`)
             .then(response => {
                 const data = response.data.data;
                 // 填充页面数据
