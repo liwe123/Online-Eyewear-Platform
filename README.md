@@ -59,7 +59,7 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/liwe123/------.git
+git clone https://github.com/liwe123/Online-Eyewear-Platform.git
 cd 丹智慧眼项目
 ```
 
