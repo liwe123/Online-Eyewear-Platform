@@ -360,6 +360,19 @@ def main() -> int:
     write_csv(rows)
     if not args.no_svg:
         generate_svgs(rows)
+
+    # 后验校验：本地 image_url 必须有对应文件，否则商店会显示"图片加载失败"
+    missing = []
+    for r in rows:
+        url = str(r.get("image_url", "")).strip()
+        if url.startswith("/static/glasses/"):
+            fname = url.rsplit("/", 1)[-1]
+            if not (IMG_DIR / fname).exists():
+                missing.append(fname)
+    if missing:
+        logger.warning("以下 %d 个图片文件缺失（商店将显示占位失败）: %s",
+                       len(missing), ", ".join(missing))
+
     if args.resync:
         resync_sqlite()
         logger.info("==> 请重启 后端(5000) 与 模型服务(8000) 以加载新数据")
