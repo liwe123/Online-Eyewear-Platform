@@ -356,7 +356,9 @@ function loadRecommendedGlasses(recommendations) {
 
         const title = document.createElement('h5');
         title.className = 'card-title';
-        title.textContent = glass.frame_shape + '眼镜';
+        title.textContent = (glass.name)
+            ? ((glass.brand ? glass.brand + ' · ' : '') + glass.name)
+            : (glass.frame_shape + '眼镜');
         cardBody.appendChild(title);
 
         const desc = document.createElement('p');
@@ -482,7 +484,9 @@ function renderShopGlasses(items) {
 
         const title = document.createElement('h5');
         title.className = 'card-title';
-        title.textContent = glass.frame_shape + '眼镜';
+        title.textContent = (glass.name)
+            ? ((glass.brand ? glass.brand + ' · ' : '') + glass.name)
+            : (glass.frame_shape + '眼镜');
         cardBody.appendChild(title);
 
         const desc = document.createElement('p');

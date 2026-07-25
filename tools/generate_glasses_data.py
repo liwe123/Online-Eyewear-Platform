@@ -34,7 +34,18 @@ PRICE_TIERS = {
     "板材": (199, 599),
 }
 
+# 镜框描边/底色：按材质着色，让占位图更接近真实镜框观感
 STROKE = "#1a1a2e"
+MATERIAL_COLORS: dict[str, str] = {
+    "纯钛": "#BFC0C8",
+    "钛合金": "#CACBD2",
+    "金属": "#D4AF37",
+    "合金": "#C2C2CC",
+    "板材": "#2E2E2E",
+    "复合板材": "#3C3C3C",
+    "TR90": "#3FA7D6",
+}
+DEFAULT_COLOR = "#444455"
 
 
 def pick_refractive_index(degree_min: float) -> float:
@@ -65,56 +76,59 @@ def make_frame_size() -> str:
 # SVG 占位图绘制：300x200，浅灰底，两个镜圈 + 中梁 + 镜腿线条
 # ---------------------------------------------------------------------------
 
-def _rim_elements(shape: str) -> str:
-    """返回两个镜圈的 SVG 元素（左圈中心约 (95,90)，右圈约 (205,90)）"""
-    common = f'fill="none" stroke="{STROKE}" stroke-width="6" stroke-linejoin="round"'
+def _rim_element(shape: str, cx: float, cy: float, color: str) -> str:
+    """单个镜圈的 SVG 元素，中心 (cx, cy)；按材质着色并带内描边高光。"""
+    rim = f'fill="{color}" fill-opacity="0.18" stroke="{STROKE}" stroke-width="5" stroke-linejoin="round"'
+    inner = f'fill="none" stroke="{STROKE}" stroke-width="2" stroke-opacity="0.35"'
     if shape == "方形":
-        return (
-            f'<rect x="63" y="64" width="64" height="52" rx="10" {common}/>'
-            f'<rect x="173" y="64" width="64" height="52" rx="10" {common}/>'
-        )
+        return (f'<rect x="{cx-30}" y="{cy-25}" width="60" height="50" rx="9" {rim}/>'
+                f'<rect x="{cx-30}" y="{cy-25}" width="60" height="50" rx="9" {inner}/>')
     if shape == "圆形":
-        return (
-            f'<circle cx="95" cy="90" r="28" {common}/>'
-            f'<circle cx="205" cy="90" r="28" {common}/>'
-        )
+        return (f'<circle cx="{cx}" cy="{cy}" r="28" {rim}/>'
+                f'<circle cx="{cx}" cy="{cy}" r="28" {inner}/>')
     if shape == "长方形":
-        return (
-            f'<rect x="61" y="72" width="68" height="38" rx="5" {common}/>'
-            f'<rect x="171" y="72" width="68" height="38" rx="5" {common}/>'
-        )
+        return (f'<rect x="{cx-32}" y="{cy-20}" width="64" height="40" rx="6" {rim}/>'
+                f'<rect x="{cx-32}" y="{cy-20}" width="64" height="40" rx="6" {inner}/>')
     if shape == "鹅蛋形":
-        return (
-            f'<ellipse cx="95" cy="90" rx="34" ry="25" {common}/>'
-            f'<ellipse cx="205" cy="90" rx="34" ry="25" {common}/>'
-        )
+        return (f'<ellipse cx="{cx}" cy="{cy}" rx="33" ry="26" {rim}/>'
+                f'<ellipse cx="{cx}" cy="{cy}" rx="33" ry="26" {inner}/>')
     if shape == "多边形":  # 六边形
-        return (
-            f'<polygon points="95,62 119,76 119,104 95,118 71,104 71,76" {common}/>'
-            f'<polygon points="205,62 229,76 229,104 205,118 181,104 181,76" {common}/>'
-        )
+        pts = (f"{cx},{cy-30} {cx+26},{cy-15} {cx+26},{cy+15} {cx},{cy+30} "
+               f"{cx-26},{cy+15} {cx-26},{cy-15}")
+        return (f'<polygon points="{pts}" {rim}/>'
+                f'<polygon points="{pts}" {inner}/>')
     if shape == "猫眼形":  # 外上角上挑
-        return (
-            f'<path d="M 125 88 C 126 105 110 114 95 114 C 76 114 68 104 68 92 '
-            f'C 68 82 58 74 52 66 C 66 68 80 70 95 72 C 112 74 124 78 125 88 Z" {common}/>'
-            f'<path d="M 175 88 C 174 105 190 114 205 114 C 224 114 232 104 232 92 '
-            f'C 232 82 242 74 248 66 C 234 68 220 70 205 72 C 188 74 176 78 175 88 Z" {common}/>'
-        )
+        d = (f'M {cx-30} {cy+18} C {cx-31} {cy+2} {cx-18} {cy-8} {cx} {cy-9} '
+             f'C {cx+18} {cy-10} {cx+31} {cy+2} {cx+30} {cy+18} '
+             f'C {cx+27} {cy-6} {cx+10} {cy-14} {cx} {cy-12} '
+             f'C {cx-12} {cy-14} {cx-28} {cy-6} {cx-30} {cy+18} Z')
+        return f'<path d="{d}" {rim}/>'
     raise ValueError(f"未知形状: {shape}")
 
 
-def make_svg(shape: str) -> str:
-    rims = _rim_elements(shape)
+def make_svg(shape: str, material: str | None = None) -> str:
+    color = MATERIAL_COLORS.get((material or "").strip(), DEFAULT_COLOR)
+    left = _rim_element(shape, 95, 100, color)
+    right = _rim_element(shape, 205, 100, color)
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">\n'
-        '  <rect width="300" height="200" fill="#f0f0f0"/>\n'
-        f'  {rims}\n'
+        '  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0" stop-color="#fafafa"/><stop offset="1" stop-color="#eceef2"/></linearGradient></defs>\n'
+        '  <rect width="300" height="200" fill="url(#bg)"/>\n'
+        # 镜腿
+        f'  <path d="M 65 96 L 26 70" fill="none" stroke="{STROKE}" stroke-width="5" stroke-linecap="round"/>\n'
+        f'  <path d="M 235 96 L 274 70" fill="none" stroke="{STROKE}" stroke-width="5" stroke-linecap="round"/>\n'
+        # 铰链点
+        f'  <circle cx="66" cy="96" r="3.5" fill="{STROKE}"/>\n'
+        f'  <circle cx="234" cy="96" r="3.5" fill="{STROKE}"/>\n'
         # 中梁
-        f'  <path d="M 126 86 Q 150 72 174 86" fill="none" stroke="{STROKE}" stroke-width="6" stroke-linecap="round"/>\n'
-        # 镜腿线条
-        f'  <path d="M 64 84 L 28 62" fill="none" stroke="{STROKE}" stroke-width="6" stroke-linecap="round"/>\n'
-        f'  <path d="M 236 84 L 272 62" fill="none" stroke="{STROKE}" stroke-width="6" stroke-linecap="round"/>\n'
-        f'  <text x="150" y="184" text-anchor="middle" font-family="sans-serif" font-size="20" fill="{STROKE}">{shape}</text>\n'
+        f'  <path d="M 126 92 Q 150 80 174 92" fill="none" stroke="{STROKE}" stroke-width="5" stroke-linecap="round"/>\n'
+        # 鼻托
+        f'  <path d="M 138 104 q -4 8 -1 14" fill="none" stroke="{STROKE}" stroke-width="2.5" stroke-opacity="0.6"/>\n'
+        f'  <path d="M 162 104 q 4 8 1 14" fill="none" stroke="{STROKE}" stroke-width="2.5" stroke-opacity="0.6"/>\n'
+        f'  {left}\n'
+        f'  {right}\n'
+        f'  <text x="150" y="190" text-anchor="middle" font-family="sans-serif" font-size="16" fill="{STROKE}">{shape}</text>\n'
         '</svg>\n'
     )
 
@@ -167,7 +181,7 @@ def main() -> None:
         writer.writerows(rows)
 
     for row in rows:
-        svg = make_svg(row["frame_shape"])
+        svg = make_svg(row["frame_shape"], row["frame_material"])
         (IMG_DIR / f"{row['glasses_id']}.svg").write_text(svg, encoding="utf-8")
 
     # 汇总输出

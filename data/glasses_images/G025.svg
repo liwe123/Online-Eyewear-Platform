@@ -1,8 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
-  <rect width="300" height="200" fill="#f0f0f0"/>
-  <path d="M 125 88 C 126 105 110 114 95 114 C 76 114 68 104 68 92 C 68 82 58 74 52 66 C 66 68 80 70 95 72 C 112 74 124 78 125 88 Z" fill="none" stroke="#1a1a2e" stroke-width="6" stroke-linejoin="round"/><path d="M 175 88 C 174 105 190 114 205 114 C 224 114 232 104 232 92 C 232 82 242 74 248 66 C 234 68 220 70 205 72 C 188 74 176 78 175 88 Z" fill="none" stroke="#1a1a2e" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M 126 86 Q 150 72 174 86" fill="none" stroke="#1a1a2e" stroke-width="6" stroke-linecap="round"/>
-  <path d="M 64 84 L 28 62" fill="none" stroke="#1a1a2e" stroke-width="6" stroke-linecap="round"/>
-  <path d="M 236 84 L 272 62" fill="none" stroke="#1a1a2e" stroke-width="6" stroke-linecap="round"/>
-  <text x="150" y="184" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#1a1a2e">猫眼形</text>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fafafa"/><stop offset="1" stop-color="#eceef2"/></linearGradient></defs>
+  <rect width="300" height="200" fill="url(#bg)"/>
+  <path d="M 65 96 L 26 70" fill="none" stroke="#1a1a2e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 235 96 L 274 70" fill="none" stroke="#1a1a2e" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="66" cy="96" r="3.5" fill="#1a1a2e"/>
+  <circle cx="234" cy="96" r="3.5" fill="#1a1a2e"/>
+  <path d="M 126 92 Q 150 80 174 92" fill="none" stroke="#1a1a2e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 138 104 q -4 8 -1 14" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-opacity="0.6"/>
+  <path d="M 162 104 q 4 8 1 14" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-opacity="0.6"/>
+  <path d="M 65 118 C 64 102 77 92 95 91 C 113 90 126 102 125 118 C 122 94 105 86 95 88 C 83 86 67 94 65 118 Z" fill="#CACBD2" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M 175 118 C 174 102 187 92 205 91 C 223 90 236 102 235 118 C 232 94 215 86 205 88 C 193 86 177 94 175 118 Z" fill="#CACBD2" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/>
+  <text x="150" y="190" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#1a1a2e">猫眼形</text>
 </svg>

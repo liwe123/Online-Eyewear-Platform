@@ -57,6 +57,8 @@ PD_GOOD_DIFF_MM: float = 4.0       # 瞳距匹配良好阈值（毫米）
 # 返回给前端的推荐字段（API 契约）
 RECOMMEND_FIELDS: tuple[str, ...] = (
     "glasses_id",
+    "name",
+    "brand",
     "frame_shape",
     "frame_size",
     "frame_material",

@@ -41,6 +41,8 @@ function addToCart(item) {
         cart.push({
             glasses_id: item.glasses_id,
             frame_shape: item.frame_shape,
+            name: item.name || '',
+            brand: item.brand || '',
             price: parseFloat(item.price) || 0,
             image_url: item.image_url || '',
             qty: 1
@@ -96,12 +98,17 @@ function renderCartModal() {
         // 数据来自后端库（admin CRUD / CSV 导入），渲染前转义防存储型 XSS
         const safeShape = escapeHtml(item.frame_shape);
         const safeIdAttr = escapeHtml(escapeJsString(item.glasses_id));
+        const safeName = escapeHtml(item.name || '');
+        const safeBrand = escapeHtml(item.brand || '');
+        const displayName = item.name
+            ? (safeBrand ? safeBrand + ' · ' + safeName : safeName)
+            : safeShape + '眼镜';
         return `
         <div class="cart-item">
             <img src="${escapeHtml(resolveImageUrl(item.image_url))}" alt="${safeShape}"
                  onerror="this.onerror=null;this.src=IMG_PLACEHOLDER;">
             <div class="cart-item-info">
-                <div class="cart-item-name">${safeShape}眼镜</div>
+                <div class="cart-item-name">${displayName}</div>
                 <div class="cart-item-price">¥${item.price.toFixed(2)}</div>
             </div>
             <div class="cart-item-qty">

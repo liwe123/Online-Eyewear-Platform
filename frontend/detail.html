@@ -125,7 +125,11 @@
                 currentGlasses = data;
 
                 // 填充页面数据
-                document.getElementById("glassesTitle").textContent = `${data.frame_shape} 眼镜 (ID: ${data.glasses_id})`;
+                let titleText = data.frame_shape + ' 眼镜 (ID: ' + data.glasses_id + ')';
+                if (data.name) {
+                    titleText = (data.brand ? data.brand + ' · ' : '') + data.name;
+                }
+                document.getElementById("glassesTitle").textContent = titleText;
                 const img = document.getElementById("glassesImage");
                 img.src = resolveImageUrl(data.image_url);
                 setImgFallback(img); // 内联 SVG 回退，不依赖外链

@@ -33,11 +33,15 @@ class Glasses(db.Model):
     lens_refractive_index = db.Column(db.Float, nullable=False)  # 镜片折射率
     price = db.Column(db.Float, nullable=False)  # 价格
     image_url = db.Column(db.String(200), nullable=False)  # 图片URL
+    name = db.Column(db.String(120), nullable=True)  # 商品名称（真实数据可选）
+    brand = db.Column(db.String(120), nullable=True)  # 品牌（真实数据可选）
 
     def to_dict(self) -> dict:
         """序列化为接口返回字典。"""
         return {
             "glasses_id": self.glasses_id,
+            "name": self.name,
+            "brand": self.brand,
             "frame_shape": self.frame_shape,
             "frame_size": self.frame_size,
             "frame_material": self.frame_material,

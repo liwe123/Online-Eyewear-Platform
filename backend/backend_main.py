@@ -313,6 +313,8 @@ def _load_glasses_from_df(glasses_df: Any) -> None:
             lens_refractive_index=float(row["lens_refractive_index"]),
             price=float(row["price"]),
             image_url=row["image_url"],
+            name=str(row["name"]).strip() if row.get("name") is not None and str(row["name"]).strip() else None,
+            brand=str(row["brand"]).strip() if row.get("brand") is not None and str(row["brand"]).strip() else None,
         )
         db.session.add(glass)
     db.session.commit()
