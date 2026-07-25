@@ -31,6 +31,9 @@ model/*.keras
 pdd_glasses_data.csv
 *.tmp.csv
 
+# 人工标注用拼图(可重新生成)
+data/contact_sheets/
+
 # IDE
 .vscode/
 .idea/
