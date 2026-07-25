@@ -115,6 +115,7 @@ docker compose up -d --build
 ├── backend/                    # Flask 后端
 │   ├── backend_main.py         # 应用装配（路由/限流/安全头/日志）
 │   ├── settings.py             # pydantic-settings 配置
+│   ├── config.py               # 兼容层：复用 settings 的旧 config 导出
 │   ├── models.py               # SQLAlchemy 模型（含 Account 账号表）
 │   ├── auth.py                 # JWT 认证 + 装饰器
 │   └── admin.py                # 管理后台 CRUD + CSV 导入
@@ -133,7 +134,7 @@ docker compose up -d --build
 ├── tests/                      # pytest 套件（94 用例）
 ├── tools/                      # 数据生成器 / 爬虫 / 调试脚本
 ├── docs/                       # 项目文档
-├── Dockerfile.backend / .model / .frontend
+├── Dockerfile.backend / Dockerfile.frontend / Dockerfile.model
 ├── docker-compose.yml          # 三服务编排（prod profile 含 Postgres）
 ├── nginx/nginx.conf            # 手动部署反代参考
 ├── .github/workflows/ci.yml    # CI：pytest + docker build
