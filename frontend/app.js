@@ -105,7 +105,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     document.getElementById('match-progress').style.width = '92%';
                     loadRecommendedGlasses(recs);
-                    showVirtualTryOn(facePreview.src, recs[0].image_url);
                 }
             } else {
                 showToast('错误：' + result.msg, 'danger');
@@ -119,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 换一款按钮
+    // 换一款按钮：循环高亮当前推荐
     document.getElementById('try-another').addEventListener('click', function () {
         const recs = window._recommendations;
         if (!recs || recs.length === 0) {
@@ -128,10 +127,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         window._currentIndex = (window._currentIndex + 1) % recs.length;
         const glass = recs[window._currentIndex];
-        const preview = document.getElementById('face-preview');
-        if (preview.style.display === 'block' && preview.src) {
-            showVirtualTryOn(preview.src, glass.image_url);
-        }
+        showToast('已切换至：' + (glass.name || glass.frame_shape + '眼镜'), 'success');
+        // 滚动到推荐区域
+        document.getElementById('products').scrollIntoView({ behavior: 'smooth' });
     });
 
     // 商城查询按钮 & 回车搜索
@@ -158,167 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
         showToast('订阅成功（演示）', 'success');
     });
 
-    // 演示虚拟试戴
-    setTimeout(function () {
-        document.getElementById('demo-face').style.display = 'block';
-        document.getElementById('demo-glasses').style.display = 'block';
-    }, 1000);
 });
-
-// ==================== 虚拟试戴（MediaPipe 关键点 + 居中降级） ====================
-
-// FaceMesh 实例（懒加载，全局复用）
-let _faceMesh = null;
-let _faceMeshReady = null;
-
-/**
- * 加载图片为 Promise
- */
-function loadImage(src) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('图片加载失败: ' + src));
-        img.src = src;
-    });
-}
-
-/**
- * 获取 FaceMesh 实例（CDN 加载失败时 reject，由调用方降级处理）
- */
-function getFaceMesh() {
-    if (_faceMeshReady) return _faceMeshReady;
-    if (typeof FaceMesh === 'undefined') {
-        return Promise.reject(new Error('MediaPipe FaceMesh 未加载'));
-    }
-    _faceMeshReady = new Promise((resolve, reject) => {
-        try {
-            _faceMesh = new FaceMesh({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-            });
-            _faceMesh.setOptions({
-                maxNumFaces: 1,
-                refineLandmarks: false,
-                minDetectionConfidence: 0.5
-            });
-            // 单例回调转发：每次 send 前登记一次性回调
-            _faceMesh._pendingCallback = null;
-            _faceMesh.onResults((results) => {
-                const cb = _faceMesh._pendingCallback;
-                _faceMesh._pendingCallback = null;
-                if (cb) cb(results);
-            });
-            resolve(_faceMesh);
-        } catch (e) {
-            reject(e);
-        }
-    });
-    return _faceMeshReady;
-}
-
-/**
- * 检测人脸 468 关键点，返回归一化坐标数组；失败/超时 reject
- */
-async function detectFaceLandmarks(imageEl) {
-    const faceMesh = await getFaceMesh();
-    return new Promise((resolve, reject) => {
-        // 15 秒超时保护，避免模型加载卡死
-        const timer = setTimeout(() => {
-            faceMesh._pendingCallback = null;
-            reject(new Error('关键点检测超时'));
-        }, 15000);
-
-        faceMesh._pendingCallback = (results) => {
-            clearTimeout(timer);
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                resolve(results.multiFaceLandmarks[0]);
-            } else {
-                reject(new Error('未检测到人脸'));
-            }
-        };
-        faceMesh.send({ image: imageEl }).catch((e) => {
-            clearTimeout(timer);
-            reject(e);
-        });
-    });
-}
-
-/**
- * 按关键点绘制眼镜：
- * - 左眼中心 33 号点、右眼中心 263 号点
- * - 眼镜宽度 = 两眼距 × 2.4，中心 = 两眼连线中点，旋转角 = 连线与水平夹角
- */
-function drawGlassesByLandmarks(ctx, glassImg, landmarks, w, h) {
-    const left = landmarks[33];
-    const right = landmarks[263];
-    const lx = left.x * w, ly = left.y * h;
-    const rx = right.x * w, ry = right.y * h;
-
-    const cx = (lx + rx) / 2;
-    const cy = (ly + ry) / 2;
-    const eyeDist = Math.hypot(rx - lx, ry - ly);
-    const glassWidth = eyeDist * 2.4;
-    const glassHeight = glassImg.height * (glassWidth / glassImg.width);
-    const angle = Math.atan2(ry - ly, rx - lx);
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    ctx.drawImage(glassImg, -glassWidth / 2, -glassHeight / 2, glassWidth, glassHeight);
-    ctx.restore();
-}
-
-/**
- * 降级方案：居中叠加（旧逻辑）
- */
-function drawGlassesCentered(ctx, glassImg, w, h) {
-    const glassWidth = w * 0.6;
-    const glassHeight = glassImg.height * (glassWidth / glassImg.width);
-    const glassX = (w - glassWidth) / 2;
-    const glassY = h * 0.35;
-    ctx.drawImage(glassImg, glassX, glassY, glassWidth, glassHeight);
-}
-
-/**
- * 虚拟试戴主入口：canvas 自适应容器宽度，优先关键点对齐，失败则居中降级
- */
-async function showVirtualTryOn(faceUrl, glassUrl) {
-    const canvas = document.getElementById('face-canvas');
-    const ctx = canvas.getContext('2d');
-
-    let faceImg;
-    try {
-        faceImg = await loadImage(faceUrl);
-    } catch (e) {
-        console.warn(e.message);
-        return;
-    }
-
-    // canvas 自适应容器宽度，按比例缩放
-    const containerWidth = canvas.parentElement.clientWidth || 600;
-    canvas.width = containerWidth;
-    canvas.height = Math.round(containerWidth * faceImg.naturalHeight / faceImg.naturalWidth);
-    ctx.drawImage(faceImg, 0, 0, canvas.width, canvas.height);
-    canvas.style.display = 'block';
-
-    let glassImg;
-    try {
-        glassImg = await loadImage(resolveImageUrl(glassUrl));
-    } catch (e) {
-        console.warn(e.message);
-        showToast('眼镜图片加载失败，请换一款试试', 'warning');
-        return;
-    }
-
-    // 尝试 MediaPipe 关键点对齐；任何失败均静默降级为居中叠加
-    try {
-        const landmarks = await detectFaceLandmarks(faceImg);
-        drawGlassesByLandmarks(ctx, glassImg, landmarks, canvas.width, canvas.height);
-    } catch (e) {
-        console.warn('关键点检测不可用，降级为居中叠加：', e.message);
-        drawGlassesCentered(ctx, glassImg, canvas.width, canvas.height);
-    }
-}
 
 // ==================== AI 推荐列表 ====================
 function escapeHtmlSafe(s) {
@@ -447,18 +285,11 @@ function loadRecommendedGlasses(recommendations) {
         const btnGroup = document.createElement('div');
         btnGroup.className = 'd-flex gap-2';
 
-        const tryBtn = document.createElement('button');
-        tryBtn.className = 'btn btn-sm btn-outline-primary';
-        tryBtn.textContent = '立即试戴';
-        tryBtn.addEventListener('click', function () {
-            const preview = document.getElementById('face-preview');
-            if (preview.style.display === 'block' && preview.src) {
-                showVirtualTryOn(preview.src, glass.image_url);
-            } else {
-                showToast('请先上传照片再试戴', 'info');
-            }
-        });
-        btnGroup.appendChild(tryBtn);
+        const detailBtn = document.createElement('a');
+        detailBtn.className = 'btn btn-sm btn-outline-primary';
+        detailBtn.textContent = '查看详情';
+        detailBtn.href = 'detail.html?glasses_id=' + encodeURIComponent(glass.glasses_id);
+        btnGroup.appendChild(detailBtn);
 
         const cartBtn = document.createElement('button');
         cartBtn.className = 'btn btn-sm btn-outline-primary';
