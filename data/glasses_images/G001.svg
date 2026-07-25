@@ -8,7 +8,7 @@
   <path d="M 126 92 Q 150 80 174 92" fill="none" stroke="#1a1a2e" stroke-width="5" stroke-linecap="round"/>
   <path d="M 138 104 q -4 8 -1 14" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-opacity="0.6"/>
   <path d="M 162 104 q 4 8 1 14" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-opacity="0.6"/>
-  <rect x="63" y="80" width="64" height="40" rx="6" fill="#3FA7D6" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/><rect x="63" y="80" width="64" height="40" rx="6" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-opacity="0.35"/>
-  <rect x="173" y="80" width="64" height="40" rx="6" fill="#3FA7D6" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/><rect x="173" y="80" width="64" height="40" rx="6" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-opacity="0.35"/>
-  <text x="150" y="190" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#1a1a2e">长方形</text>
+  <ellipse cx="95" cy="100" rx="33" ry="26" fill="#BFC0C8" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/><ellipse cx="95" cy="100" rx="33" ry="26" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-opacity="0.35"/>
+  <ellipse cx="205" cy="100" rx="33" ry="26" fill="#BFC0C8" fill-opacity="0.18" stroke="#1a1a2e" stroke-width="5" stroke-linejoin="round"/><ellipse cx="205" cy="100" rx="33" ry="26" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-opacity="0.35"/>
+  <text x="150" y="190" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#1a1a2e">鹅蛋形</text>
 </svg>
