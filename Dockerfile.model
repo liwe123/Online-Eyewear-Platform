@@ -1,0 +1,28 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# opencv / mediapipe 运行所需的最小系统库
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 先装 CPU 版 torch/torchvision（锁定版本，显著减小镜像体积）
+RUN pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu
+
+# 其余依赖锁定安装（torch 已装，pip 不会重复拉取 GPU 版）
+COPY requirements-model.txt ./requirements-model.txt
+RUN pip install -r requirements-model.txt
+
+COPY model_api.py model_utils.py face_geometry.py recommend_rules.py ./
+COPY model/ ./model/
+# 挂载的只读数据目录（容器内路径 /app/data）
+COPY data/ ./data/
+
+EXPOSE 8000
+
+CMD ["uvicorn", "model_api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

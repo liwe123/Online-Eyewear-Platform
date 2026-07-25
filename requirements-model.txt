@@ -1,0 +1,16 @@
+# 模型服务（FastAPI）Docker 构建依赖 — 锁定版本
+# torch/torchvision 使用 CPU 版（构建时通过 --index-url 指定 pytorch 源）
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.2.1
+python-multipart==0.0.6
+loguru==0.7.2
+numpy==1.26.3
+pandas==2.1.4
+opencv-python-headless==4.8.1.78
+Pillow==10.1.0
+mediapipe==0.10.14
+facenet-pytorch==2.5.3
+torch>=2.0.0
+torchvision>=0.15.0

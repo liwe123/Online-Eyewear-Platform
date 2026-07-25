@@ -4,3 +4,11 @@ flask-cors==4.0.0
 requests==2.31.0
 pandas==2.1.4
 numpy==1.26.3
+# --- 生产化改造新增 ---
+pydantic-settings==2.2.1
+PyJWT==2.8.0
+loguru==0.7.2
+flask-limiter==3.5.0
+gunicorn==21.2.0
+# PostgreSQL 生产部署时按需安装：
+# psycopg2-binary==2.9.9

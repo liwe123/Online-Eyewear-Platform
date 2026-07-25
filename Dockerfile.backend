@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# 后端依赖（锁定版本，与 backend/requirements.txt 保持一致；psycopg2-binary 供可选的 Postgres）
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install -r backend/requirements.txt psycopg2-binary==2.9.9
+
+# 业务代码与种子数据（运行时 compose 会用 volume 覆盖 /app/data）
+COPY backend/ ./backend/
+COPY data/ ./data/
+
+EXPOSE 5000
+
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "backend.backend_main:app"]

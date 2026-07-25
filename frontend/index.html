@@ -8,9 +8,11 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <!-- MediaPipe FaceMesh：用于虚拟试戴的人脸关键点检测 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" defer></script>
 </head>
 
-<body>
+<body id="top">
     <!-- 导航栏 -->
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
         <div class="container">
@@ -24,7 +26,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#">首页</a>
+                        <a class="nav-link active" href="#top">首页</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#features">平台特色</a>
@@ -33,18 +35,19 @@
                         <a class="nav-link" href="#ai-try-on">AI试戴</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#products">眼镜商城</a>
+                        <a class="nav-link" href="#shop">眼镜商城</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#about">关于我们</a>
                     </li>
                 </ul>
                 <div class="d-flex">
-                    <button class="btn btn-outline-light me-2">
+                    <button class="btn btn-outline-light me-2" id="auth-btn">
                         <i class="fas fa-user me-1"></i> 登录
                     </button>
-                    <button class="btn btn-light">
+                    <button class="btn btn-light position-relative" id="cart-btn">
                         <i class="fas fa-shopping-cart me-1"></i> 购物车
+                        <span class="badge rounded-pill bg-danger cart-badge" id="cart-badge">0</span>
                     </button>
                 </div>
             </div>
@@ -160,19 +163,30 @@
                         <div class="mb-4">
                             <h5>视力数据</h5>
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-6 col-md-3">
                                     <label class="form-label">左眼度数</label>
-                                    <input type="number" class="form-control" id="left-eye" placeholder="-2.50">
+                                    <input type="number" class="form-control" id="left-eye" placeholder="-2.50"
+                                           min="-20" max="10" step="0.25">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-6 col-md-3">
                                     <label class="form-label">右眼度数</label>
-                                    <input type="number" class="form-control" id="right-eye" placeholder="-2.75">
+                                    <input type="number" class="form-control" id="right-eye" placeholder="-2.75"
+                                           min="-20" max="10" step="0.25">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-6 col-md-3">
                                     <label class="form-label">瞳距(mm)</label>
-                                    <input type="number" class="form-control" id="pupil-distance" placeholder="64">
+                                    <input type="number" class="form-control" id="pupil-distance" placeholder="64"
+                                           min="30" max="80">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label">角膜曲率(D)</label>
+                                    <input type="number" class="form-control" id="corneal-curvature" placeholder="43.0"
+                                           min="30" max="50" step="0.1">
                                 </div>
                             </div>
+                            <p class="privacy-note mb-0 mt-3">
+                                <i class="fas fa-shield-alt me-1"></i>您的照片仅用于本次 AI 分析，不会在服务器留存
+                            </p>
                         </div>
 
                         <button class="btn btn-primary-custom w-100" id="analyze-btn">
@@ -227,6 +241,51 @@
             <div class="row g-4" id="recommended-glasses">
                 <!-- 推荐眼镜将通过JS动态加载 -->
             </div>
+        </div>
+    </section>
+
+    <!-- 眼镜商城 -->
+    <section id="shop" class="py-5">
+        <div class="container">
+            <div class="row mb-4">
+                <div class="col-12 text-center">
+                    <h2 class="section-title center-title">眼镜商城</h2>
+                    <p class="lead">浏览全部眼镜款式，挑选心仪之作</p>
+                    <div class="accent-line"></div>
+                </div>
+            </div>
+            <!-- 筛选栏 -->
+            <div class="row g-2 align-items-end mb-4 shop-filter">
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label">镜框形状</label>
+                    <select class="form-select" id="shop-filter-shape">
+                        <option value="">全部</option>
+                        <option value="方形">方形</option>
+                        <option value="圆形">圆形</option>
+                        <option value="猫眼形">猫眼形</option>
+                        <option value="长方形">长方形</option>
+                        <option value="鹅蛋形">鹅蛋形</option>
+                        <option value="多边形">多边形</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <label class="form-label">关键词</label>
+                    <input type="text" class="form-control" id="shop-filter-keyword" placeholder="搜索形状、材质...">
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
+                    <button class="btn btn-primary-custom w-100" id="shop-search-btn">
+                        <i class="fas fa-search me-1"></i> 查询
+                    </button>
+                </div>
+            </div>
+            <!-- 商品列表 -->
+            <div class="row g-4" id="shop-glasses">
+                <!-- 商城商品将通过JS动态加载 -->
+            </div>
+            <!-- 分页器 -->
+            <nav class="mt-5" aria-label="商城分页">
+                <ul class="pagination justify-content-center" id="shop-pagination"></ul>
+            </nav>
         </div>
     </section>
 
@@ -332,10 +391,10 @@
                 <div class="col-lg-2 col-6 mb-4 mb-lg-0">
                     <h5 class="mb-3">快速链接</h5>
                     <div class="footer-links d-flex flex-column">
-                        <a href="#" class="mb-2">首页</a>
+                        <a href="#top" class="mb-2">首页</a>
                         <a href="#features" class="mb-2">平台特色</a>
                         <a href="#ai-try-on" class="mb-2">AI试戴</a>
-                        <a href="#products" class="mb-2">眼镜商城</a>
+                        <a href="#shop" class="mb-2">眼镜商城</a>
                     </div>
                 </div>
                 <div class="col-lg-3 col-6 mb-4 mb-lg-0">
@@ -350,8 +409,8 @@
                     <h5 class="mb-3">订阅资讯</h5>
                     <p class="mb-3">订阅我们的新闻通讯，获取最新产品与优惠信息</p>
                     <div class="input-group">
-                        <input type="email" class="form-control" placeholder="您的邮箱地址">
-                        <button class="btn btn-primary-custom" type="button">订阅</button>
+                        <input type="email" class="form-control" id="subscribe-email" placeholder="您的邮箱地址">
+                        <button class="btn btn-primary-custom" type="button" id="subscribe-btn">订阅</button>
                     </div>
                 </div>
             </div>
@@ -362,8 +421,8 @@
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <div class="footer-links d-inline-flex gap-3">
-                        <a href="#" class="mb-0">隐私政策</a>
-                        <a href="#" class="mb-0">使用条款</a>
+                        <a href="#" class="mb-0" data-bs-toggle="modal" data-bs-target="#privacyModal">隐私政策</a>
+                        <a href="#" class="mb-0" data-bs-toggle="modal" data-bs-target="#termsModal">使用条款</a>
                         <a href="#" class="mb-0">网站地图</a>
                     </div>
                 </div>
@@ -371,7 +430,62 @@
         </div>
     </footer>
 
+    <!-- 隐私政策 Modal -->
+    <div class="modal fade" id="privacyModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>隐私政策</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body" style="font-size:0.9rem;line-height:1.8;">
+                    <h6>1. 照片数据</h6>
+                    <p>您上传的照片仅用于本次 AI 脸型分析，经加密传输至服务器完成分析后<strong>不会在服务器留存</strong>，分析结束即销毁。</p>
+                    <h6>2. 验光数据</h6>
+                    <p>您填写的瞳距、角膜曲率、近视度数仅用于生成个性化推荐，存储于平台数据库用于改进推荐质量，不会向第三方披露。</p>
+                    <h6>3. 账号数据</h6>
+                    <p>注册账号的密码经加密哈希存储，平台无法获取您的明文密码。</p>
+                    <h6>4. Cookie 与本地存储</h6>
+                    <p>平台使用浏览器本地存储（localStorage）保存登录状态与购物车，不会用于跟踪。</p>
+                    <h6>5. 您的权利</h6>
+                    <p>您可随时通过联系平台删除您的账号与关联数据。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary-custom" data-bs-dismiss="modal">我已了解</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用条款 Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-file-contract me-2"></i>使用条款</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body" style="font-size:0.9rem;line-height:1.8;">
+                    <h6>1. 服务说明</h6>
+                    <p>丹智慧眼提供基于 AI 的眼镜推荐与虚拟试戴服务，推荐结果仅供参考，最终配镜请以专业验光机构意见为准。</p>
+                    <h6>2. 用户义务</h6>
+                    <p>请勿上传他人照片或违法内容；请勿对平台进行恶意攻击、爬取或滥用。</p>
+                    <h6>3. 知识产权</h6>
+                    <p>平台内容（含设计、代码、文案）知识产权归项目组所有。</p>
+                    <h6>4. 免责条款</h6>
+                    <p>平台为大学生创新创业项目，按"现状"提供服务，不对服务中断或数据误差造成的损失承担责任。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary-custom" data-bs-dismiss="modal">我已了解</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="common.js"></script>
+    <script src="cart.js"></script>
+    <script src="auth.js"></script>
     <script src="app.js"></script>
 </body>
 

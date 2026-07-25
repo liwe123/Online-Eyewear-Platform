@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  # FastAPI 模型服务（8000）
+  model:
+    build:
+      context: .
+      dockerfile: Dockerfile.model
+    container_name: dzhy-model
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data:ro   # 数据只读挂载
+    networks:
+      - dznet
+
+  # Flask 后端（5000）
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: dzhy-backend
+    ports:
+      - "5000:5000"
+    environment:
+      MODEL_API_URL: http://model:8000
+      # 安全关键配置：生产部署必须通过 .env 或环境变量覆盖，勿用默认值
+      SECRET_KEY: ${SECRET_KEY:?please set SECRET_KEY in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?please set ADMIN_PASSWORD in .env}
+      # 默认 sqlite；生产环境切换为：
+      # DATABASE_URL: postgresql://dzhy:${POSTGRES_PASSWORD}@db:5432/dzhy
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/backend.db}
+    volumes:
+      - ./data:/app/data      # sqlite 落盘需要可写
+    depends_on:
+      - model
+    networks:
+      - dznet
+
+  # 静态前端（宿主机 5500 -> 容器 80）
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: dzhy-frontend
+    ports:
+      - "5500:80"
+    depends_on:
+      - backend
+    networks:
+      - dznet
+
+  # 可选生产数据库：docker compose --profile prod up -d
+  # 启用后把 backend 的 DATABASE_URL 切到 postgresql://dzhy:${POSTGRES_PASSWORD}@db:5432/dzhy
+  db:
+    image: postgres:16-alpine
+    container_name: dzhy-db
+    profiles: ["prod"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dzhy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?please set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-dzhy}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - dznet
+
+networks:
+  dznet:
+    driver: bridge
+
+volumes:
+  pgdata:
