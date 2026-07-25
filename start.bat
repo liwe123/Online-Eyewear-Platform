@@ -11,29 +11,45 @@ echo.
 set "PROJECT_DIR=%~dp0"
 cd /d "%PROJECT_DIR%"
 
-:: 检查虚拟环境
-if exist ".venv\Scripts\activate.bat" (
-    echo [√] 检测到虚拟环境，正在激活...
-    call .venv\Scripts\activate.bat
-) else (
-    echo [!] 未检测到虚拟环境，使用系统 Python
-)
+:: ---------------------------------------------------------------------------
+:: 选择 Python 解释器
+:: 问题：MediaPipe 等原生库在 Windows 上无法读取「含中文路径」下的模型文件
+::       (Python 能看到文件，但 C++ 层按 ANSI 解析失败 -> FileNotFoundError)。
+:: 解决：若项目路径含非 ASCII 字符，则在系统盘建一个 ASCII 路径的「目录联接」(junction)
+::       指向项目 .venv，用该联接里的 python 启动。模型文件仍在项目 .venv 内，
+::       不复制、不污染系统环境，仅作为路径别名。
+:: ---------------------------------------------------------------------------
+set "VENV_LINK=%SystemDrive%\dzhy_venv"
 
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command ^
+  "$pd='%PROJECT_DIR%'; $link='%VENV_LINK%'; ^
+   $venvDir=Join-Path $pd '.venv'; ^
+   $venvPy=Join-Path (Join-Path $pd '.venv') 'Scripts\python.exe'; ^
+   if(Test-Path $venvPy){ ^
+     if($pd -match '[^\x00-\x7F]'){ ^
+       if(Test-Path $link){ Remove-Item $link -Force -ErrorAction SilentlyContinue }; ^
+       New-Item -ItemType Junction -Path $link -Target $venvDir -Force | Out-Null; ^
+       Join-Path $link 'Scripts\python.exe' ^
+     } else { $venvPy } ^
+   } else { 'python' }"`) do set "PYTHON=%%i"
+
+if "%PYTHON%"=="" set "PYTHON=python"
+echo [√] 使用 Python: %PYTHON%
 echo.
 
 :: ---- 启动模型API (端口 8000) ----
 echo [1/3] 启动模型API服务 (端口 8000)...
-start "丹智慧眼-模型API" cmd /c "cd /d %PROJECT_DIR% && python model_api.py"
-timeout /t 5 /nobreak >nul
+start "丹智慧眼-模型API" cmd /c "cd /d %PROJECT_DIR% && "%PYTHON%" model_api.py"
+timeout /t 6 /nobreak >nul
 
 :: ---- 启动后端 (端口 5000) ----
 echo [2/3] 启动后端服务 (端口 5000)...
-start "丹智慧眼-后端" cmd /c "cd /d %PROJECT_DIR% && python backend/backend_main.py"
+start "丹智慧眼-后端" cmd /c "cd /d %PROJECT_DIR% && "%PYTHON%" backend/backend_main.py"
 timeout /t 3 /nobreak >nul
 
 :: ---- 启动前端 (端口 5500) ----
 echo [3/3] 启动前端页面 (端口 5500)...
-start "丹智慧眼-前端" cmd /c "cd /d %PROJECT_DIR%\frontend && python -m http.server 5500"
+start "丹智慧眼-前端" cmd /c "cd /d %PROJECT_DIR%\frontend && "%PYTHON%" -m http.server 5500"
 
 echo.
 echo ============================================
