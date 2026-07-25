@@ -227,6 +227,10 @@ async def predict_face_shape(file: UploadFile = File(...)) -> dict:
             "msg": "识别成功",
             "method": result["method"],
             "metrics": result["metrics"],
+            "landmarks_count": result.get("landmarks_count", 0),
+            "landmarks": result.get("landmarks", []),
+            "analysis": result.get("analysis", []),
+            "verdict": result.get("verdict", ""),
         }
     except Exception:
         logger.exception("脸型识别失败")
@@ -251,7 +255,12 @@ async def get_recommendation(eye_data: EyeData, face_shape: str = Query(...)) ->
             glasses_df=_resources["glasses_df"],
             top_n=DEFAULT_TOP_K,
         )
-        recommendation = [{k: item.get(k) for k in RECOMMEND_FIELDS} for item in items]
+        recommendation = []
+        for item in items:
+            rec = {k: item.get(k) for k in RECOMMEND_FIELDS}
+            rec["reason"] = item.get("reason")
+            rec["score"] = item.get("score")
+            recommendation.append(rec)
         logger.info(f"推荐完成: 脸型={face_shape}, 结果数={len(recommendation)}")
         return {"code": 200, "recommendation": recommendation, "msg": "推荐成功", "rules": rules}
     except Exception:

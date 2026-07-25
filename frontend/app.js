@@ -94,15 +94,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (result.code === 200) {
                 const recs = result.data.recommendation || [];
+                renderFaceReport(result.data);
+                if (result.data.landmarks && result.data.landmarks.length) {
+                    drawLandmarks(result.data.landmarks);
+                }
                 if (recs.length === 0) {
-                    document.getElementById('analysis-result').textContent =
-                        '分析完成！检测到您的脸型为' + result.data.face_shape + '，但暂时没有适配您度数的眼镜，推荐放宽筛选条件后再试。';
                     document.getElementById('match-progress').style.width = '60%';
                     loadRecommendedGlasses([]);
                     showToast('未找到适配您度数范围的眼镜', 'warning');
                 } else {
-                    document.getElementById('analysis-result').textContent =
-                        '分析完成！检测到您的脸型为' + result.data.face_shape + '，为您推荐以下眼镜。';
                     document.getElementById('match-progress').style.width = '92%';
                     loadRecommendedGlasses(recs);
                     showVirtualTryOn(facePreview.src, recs[0].image_url);
@@ -321,6 +321,66 @@ async function showVirtualTryOn(faceUrl, glassUrl) {
 }
 
 // ==================== AI 推荐列表 ====================
+function escapeHtmlSafe(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function renderFaceReport(data) {
+    const report = document.getElementById('analysis-report');
+    if (!report) return;
+    const shape = data.face_shape || '未知';
+    const count = data.landmarks_count || 0;
+    const analysis = data.analysis || [];
+    const verdict = data.verdict || '';
+
+    let html = '';
+    html += '<div class="report-head">';
+    html += '  <div class="feature-points"><span class="fp-num">' + count + '</span><span class="fp-label">个面部特征点已分析</span></div>';
+    html += '  <div class="face-shape-badge">脸型判定：<b>' + escapeHtmlSafe(shape) + '</b></div>';
+    html += '</div>';
+
+    const summary = 'AI 已基于 ' + count + ' 个面部特征点完成几何测量，检测到您的脸型为「' + shape + '」';
+    html += '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i>' + escapeHtmlSafe(summary) + '</div>';
+
+    if (verdict) {
+        html += '<div class="verdict"><b>判定依据：</b>' + escapeHtmlSafe(verdict) + '</div>';
+    }
+    if (analysis.length) {
+        html += '<div class="metric-grid">';
+        analysis.forEach(function (m) {
+            html += '<div class="metric-card">';
+            html += '  <div class="metric-label">' + escapeHtmlSafe(m.label) + '</div>';
+            html += '  <div class="metric-value">' + escapeHtmlSafe(m.value) + '</div>';
+            html += '  <div class="metric-desc">' + escapeHtmlSafe(m.desc) + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    report.innerHTML = html;
+}
+
+function drawLandmarks(landmarks) {
+    const preview = document.getElementById('face-preview');
+    const canvas = document.getElementById('face-landmarks');
+    if (!preview || !canvas || !preview.clientWidth) return;
+    const w = preview.clientWidth;
+    const h = preview.clientHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(99,102,241,0.85)';
+    for (let i = 0; i < landmarks.length; i++) {
+        const x = landmarks[i][0] * w;
+        const y = landmarks[i][1] * h;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
 function loadRecommendedGlasses(recommendations) {
     const container = document.getElementById('recommended-glasses');
     container.textContent = '';
@@ -365,6 +425,16 @@ function loadRecommendedGlasses(recommendations) {
         desc.className = 'card-text text-muted';
         desc.textContent = glass.frame_material + ' | 折射率: ' + glass.lens_refractive_index;
         cardBody.appendChild(desc);
+
+        if (glass.reason) {
+            const reason = document.createElement('div');
+            reason.className = 'rec-reason';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-lightbulb';
+            reason.appendChild(icon);
+            reason.appendChild(document.createTextNode(' ' + glass.reason));
+            cardBody.appendChild(reason);
+        }
 
         const priceRow = document.createElement('div');
         priceRow.className = 'd-flex justify-content-between align-items-center';
@@ -493,6 +563,16 @@ function renderShopGlasses(items) {
         desc.className = 'card-text text-muted';
         desc.textContent = glass.frame_material + ' | 折射率: ' + glass.lens_refractive_index;
         cardBody.appendChild(desc);
+
+        if (glass.reason) {
+            const reason = document.createElement('div');
+            reason.className = 'rec-reason';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-lightbulb';
+            reason.appendChild(icon);
+            reason.appendChild(document.createTextNode(' ' + glass.reason));
+            cardBody.appendChild(reason);
+        }
 
         const priceRow = document.createElement('div');
         priceRow.className = 'd-flex justify-content-between align-items-center';

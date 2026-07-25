@@ -751,6 +751,129 @@ footer .input-group .btn-primary-custom:hover {
     display: none;
 }
 
+.preview-wrap {
+    line-height: 0;
+    max-width: 100%;
+}
+
+.face-landmarks-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* ====== AI 面部分析报告 ====== */
+.ai-report .report-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.ai-report .feature-points {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    border: 1px solid #c7d2fe;
+    border-radius: 12px;
+    padding: 10px 16px;
+}
+
+.ai-report .fp-num {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #4338ca;
+    line-height: 1;
+}
+
+.ai-report .fp-label {
+    font-size: 0.85rem;
+    color: #4f46e5;
+}
+
+.ai-report .face-shape-badge {
+    font-size: 0.95rem;
+    color: #334155;
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 6px 14px;
+}
+
+.ai-report .face-shape-badge b {
+    color: #0f172a;
+}
+
+.ai-report .verdict {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #475569;
+    background: #f8fafc;
+    border-left: 3px solid #6366f1;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.metric-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.metric-label {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.metric-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.metric-desc {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+/* 推荐理由 */
+.rec-reason {
+    font-size: 0.76rem;
+    color: #64748b;
+    line-height: 1.5;
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-top: 8px;
+}
+
+.rec-reason i {
+    color: #6366f1;
+    margin-right: 4px;
+}
+
 .glass-overlay {
     position: absolute;
     display: none;

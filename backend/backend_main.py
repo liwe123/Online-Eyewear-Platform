@@ -174,6 +174,11 @@ def user_submit() -> Any:
         if face_shape_data.get("code") != 200:
             return jsonify({"code": 400, "msg": face_shape_data.get("msg", "脸型识别失败")}), 400
         face_shape = face_shape_data["face_shape"]
+        face_metrics = face_shape_data.get("metrics")
+        face_analysis = face_shape_data.get("analysis")
+        face_verdict = face_shape_data.get("verdict")
+        face_landmarks = face_shape_data.get("landmarks")
+        face_landmarks_count = face_shape_data.get("landmarks_count")
 
         # ---------- 4. 调用模型API获取推荐 ----------
         recommend_response = requests.post(
@@ -215,7 +220,16 @@ def user_submit() -> Any:
         return jsonify({
             "code": 200,
             "msg": "提交成功",
-            "data": {"user_id": user_id, "face_shape": face_shape, "recommendation": recommendation},
+            "data": {
+                "user_id": user_id,
+                "face_shape": face_shape,
+                "metrics": face_metrics,
+                "analysis": face_analysis,
+                "verdict": face_verdict,
+                "landmarks_count": face_landmarks_count,
+                "landmarks": face_landmarks,
+                "recommendation": recommendation,
+            },
         })
     except requests.exceptions.Timeout:
         db.session.rollback()

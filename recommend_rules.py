@@ -275,7 +275,11 @@ def recommend(
         if len(preferred_shapes) == 0 or shape in preferred_shapes:
             score += SCORE_FACE_MATCH
             if face_known:
-                item_reasons.append(f"{face_name}适配{shape}镜框")
+                face_reason = _FACE_RULE_REASON.get(face_key, "")
+                if face_reason:
+                    item_reasons.append(f"{face_name}适配{shape}镜框，{face_reason}")
+                else:
+                    item_reasons.append(f"{face_name}适配{shape}镜框")
             item["_face_matched"] = True
         else:
             item["_face_matched"] = False

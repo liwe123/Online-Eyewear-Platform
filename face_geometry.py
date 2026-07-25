@@ -40,6 +40,21 @@ _IDX_JAW_L: int = 172         # 左下颌角
 _IDX_JAW_R: int = 397         # 右下颌角
 _IDX_FOREHEAD_L: int = 103    # 左额角
 _IDX_FOREHEAD_R: int = 332    # 右额角
+# 三庭五眼 / 鼻唇 参考点
+_IDX_BROW_CENTER: int = 9      # 眉间点（前额正中）
+_IDX_NOSE_ROOT: int = 168      # 鼻根（鼻梁起点）
+_IDX_PHILTRUM: int = 2         # 鼻下点（鼻底中点）
+_IDX_NOSE_TIP: int = 1         # 鼻尖
+_IDX_EYE_OUT_L: int = 33       # 左眼外眦
+_IDX_EYE_IN_L: int = 133       # 左眼内眦
+_IDX_EYE_IN_R: int = 362       # 右眼内眦
+_IDX_EYE_OUT_R: int = 263      # 右眼外眦
+_IDX_MOUTH_L: int = 61         # 左嘴角
+_IDX_MOUTH_R: int = 291        # 右嘴角
+
+# 分析报告阈值（用于中文解释）
+JAW_ANGLE_SQUARE: float = 115.0   # 下颌角 < 该值 → 方脸倾向（下颌轮廓硬朗）
+JAW_ANGLE_OVAL: float = 130.0     # 下颌角 > 该值 → 尖下巴（鹅蛋/瓜子倾向）
 
 # lazy 单例缓存
 _face_mesh: Any = None
@@ -129,6 +144,98 @@ def _classify_by_metrics(face_ratio: float, jaw_ratio: float, forehead_ratio: fl
     return "鹅蛋脸"
 
 
+def _angle(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> float:
+    """计算 ∠abc（顶点 b）的角度，单位：度。用于下颌角近似。"""
+    import numpy as _np  # 复用已导入的 np 亦可，这里局部引用避免作用域歧义
+
+    ba = _np.array([a[0] - b[0], a[1] - b[1]])
+    bc = _np.array([c[0] - b[0], c[1] - b[1]])
+    norm_ba = float(_np.linalg.norm(ba))
+    norm_bc = float(_np.linalg.norm(bc))
+    if norm_ba < 1e-6 or norm_bc < 1e-6:
+        return 0.0
+    cosv = float(_np.clip(_np.dot(ba, bc) / (norm_ba * norm_bc), -1.0, 1.0))
+    return math.degrees(math.acos(cosv))
+
+
+def _explain_verdict(
+    face_ratio: float, jaw_ratio: float, forehead_ratio: float, face_shape: str
+) -> str:
+    """生成脸型判定的中文依据文字。"""
+    if face_shape == "长方形":
+        rule = f"脸长宽比 {face_ratio:.2f} > {FACE_RATIO_LONG}（长脸特征）"
+    elif face_shape == "圆形":
+        rule = (
+            f"脸长宽比 {face_ratio:.2f} < {FACE_RATIO_ROUND} 且 "
+            f"下颌宽比 {jaw_ratio:.2f} > {JAW_RATIO_ROUND}（短圆脸、下颌饱满）"
+        )
+    elif face_shape == "方形":
+        rule = (
+            f"下颌宽比 {jaw_ratio:.2f} ≥ {JAW_RATIO_SQUARE} 且 "
+            f"额宽比与下颌宽比差 {abs(forehead_ratio - jaw_ratio):.2f} < {FOREHEAD_JAW_MAX_DIFF}"
+            f"（方正下颌、上下同宽）"
+        )
+    else:  # 鹅蛋脸 / 椭圆
+        rule = (
+            f"脸长宽比 {face_ratio:.2f} 适中，且下颌/额宽比例不符合方脸或圆脸特征"
+            f"（轮廓柔和、下巴微尖）"
+        )
+    return f"判定为「{face_shape}」：{rule}。"
+
+
+def _build_analysis(m: dict) -> list[dict]:
+    """根据测量指标生成中文分析报告列表（每个指标配数值与解释）。"""
+    fa = m.get("face_ratio") or 0.0
+    jr = m.get("jaw_ratio") or 0.0
+    fr = m.get("forehead_ratio") or 0.0
+    ja = m.get("jaw_angle_deg") or 0.0
+    ur = m.get("upper_third_ratio") or 0.0
+    lr = m.get("lower_third_ratio") or 0.0
+    fe = m.get("face_to_eye_ratio") or 0.0
+
+    def _face_len_desc(v: float) -> str:
+        if v > FACE_RATIO_LONG:
+            return "脸偏长，适合横向扩张感、框高适中的镜框"
+        if v < FACE_RATIO_ROUND:
+            return "脸偏短圆，适合有高度、能拉长脸型的镜框"
+        return "脸长比例均衡，多数镜框都较协调"
+
+    def _jaw_desc(v: float) -> str:
+        if v >= JAW_RATIO_SQUARE:
+            return "下颌较宽，方脸感强，宜用圆润框型中和硬朗"
+        if v < JAW_RATIO_ROUND:
+            return "下颌偏窄，下巴线条柔和，鹅蛋/瓜子脸特征"
+        return "下颌宽度适中"
+
+    def _jaw_angle_desc(v: float) -> str:
+        if v == 0.0:
+            return "下颌轮廓角"
+        if v < JAW_ANGLE_SQUARE:
+            return "下颌角偏小，轮廓硬朗（方脸倾向）"
+        if v > JAW_ANGLE_OVAL:
+            return "下颌角偏大，下巴尖翘（鹅蛋/瓜子脸倾向）"
+        return "下颌角适中"
+
+    def _third_desc(v: float, name: str) -> str:
+        if v == 0.0:
+            return f"{name}比例"
+        if abs(v - 1.0) <= 0.15:
+            return f"{name}≈1，三庭较均匀"
+        if v > 1.15:
+            return f"{name}偏大，该段偏长"
+        return f"{name}偏小，该段偏短"
+
+    return [
+        {"label": "脸长宽比", "value": f"{fa:.2f}", "desc": _face_len_desc(fa)},
+        {"label": "下颌宽比", "value": f"{jr:.2f}", "desc": _jaw_desc(jr)},
+        {"label": "额宽比", "value": f"{fr:.2f}", "desc": "额头宽度与颧骨宽之比，影响上半脸视觉重量"},
+        {"label": "下颌角", "value": f"{ja:.0f}°" if ja else "—", "desc": _jaw_angle_desc(ja)},
+        {"label": "上庭/中庭", "value": f"{ur:.2f}" if ur else "—", "desc": _third_desc(ur, "上庭")},
+        {"label": "下庭/中庭", "value": f"{lr:.2f}" if lr else "—", "desc": _third_desc(lr, "下庭")},
+        {"label": "脸宽/眼宽", "value": f"{fe:.1f}" if fe else "—", "desc": "颧骨宽与单眼宽之比，越接近 5 越符合「三庭五眼」标准"},
+    ]
+
+
 def _classify_by_box(box_ratio: float) -> str:
     """用检测框长宽比做粗略分类（fallback 启发式）。
 
@@ -197,7 +304,21 @@ def classify_face_shape(image_bgr: np.ndarray) -> dict:
     """
     result: dict = {
         "face_shape": "",
-        "metrics": {"face_ratio": None, "jaw_ratio": None, "forehead_ratio": None},
+        "metrics": {
+            "face_ratio": None,
+            "jaw_ratio": None,
+            "forehead_ratio": None,
+            "jaw_angle_deg": None,
+            "upper_third_ratio": None,
+            "lower_third_ratio": None,
+            "face_to_eye_ratio": None,
+            "mouth_ratio": None,
+            "nose_ratio": None,
+        },
+        "landmarks_count": 0,
+        "landmarks": [],
+        "analysis": [],
+        "verdict": "",
         "face_detected": False,
         "method": "unknown",
     }
@@ -225,16 +346,43 @@ def classify_face_shape(image_bgr: np.ndarray) -> dict:
                 cheek_w = _dist(_pt(_IDX_CHEEK_L), _pt(_IDX_CHEEK_R))
                 jaw_w = _dist(_pt(_IDX_JAW_L), _pt(_IDX_JAW_R))
                 forehead_w = _dist(_pt(_IDX_FOREHEAD_L), _pt(_IDX_FOREHEAD_R))
+                # 三庭五眼 / 鼻唇
+                upper_t = _dist(_pt(_IDX_FOREHEAD_TOP), _pt(_IDX_BROW_CENTER))
+                mid_t = _dist(_pt(_IDX_BROW_CENTER), _pt(_IDX_PHILTRUM))
+                lower_t = _dist(_pt(_IDX_PHILTRUM), _pt(_IDX_CHIN))
+                eye_w = _dist(_pt(_IDX_EYE_OUT_L), _pt(_IDX_EYE_IN_L))
+                eye_gap = _dist(_pt(_IDX_EYE_IN_L), _pt(_IDX_EYE_IN_R))
+                nose_len = _dist(_pt(_IDX_NOSE_ROOT), _pt(_IDX_PHILTRUM))
+                mouth_w = _dist(_pt(_IDX_MOUTH_L), _pt(_IDX_MOUTH_R))
+                # 下颌角：左颧弓外侧(234) - 左下颌角(172) - 下巴尖(152)
+                jaw_angle = _angle(
+                    _pt(_IDX_CHEEK_L), _pt(_IDX_JAW_L), _pt(_IDX_CHIN)
+                )
                 if cheek_w > 1e-6:
                     face_ratio = face_len / cheek_w
                     jaw_ratio = jaw_w / cheek_w
                     forehead_ratio = forehead_w / cheek_w
-                    result["metrics"] = {
+                    mid_safe = mid_t if mid_t > 1e-6 else 1.0
+                    metrics: dict = {
                         "face_ratio": round(face_ratio, 3),
                         "jaw_ratio": round(jaw_ratio, 3),
                         "forehead_ratio": round(forehead_ratio, 3),
+                        "jaw_angle_deg": round(jaw_angle, 1),
+                        "upper_third_ratio": round(upper_t / mid_safe, 3),
+                        "lower_third_ratio": round(lower_t / mid_safe, 3),
+                        "face_to_eye_ratio": round(cheek_w / eye_w, 2) if eye_w > 1e-6 else None,
+                        "mouth_ratio": round(mouth_w / cheek_w, 3),
+                        "nose_ratio": round(nose_len / cheek_w, 3),
                     }
-                    result["face_shape"] = _classify_by_metrics(face_ratio, jaw_ratio, forehead_ratio)
+                    face_shape = _classify_by_metrics(face_ratio, jaw_ratio, forehead_ratio)
+                    # 归一化关键点（前端点云可视化用）
+                    landmarks = [[round(lm.x, 4), round(lm.y, 4)] for lm in lms]
+                    result["metrics"] = metrics
+                    result["landmarks_count"] = len(lms)
+                    result["landmarks"] = landmarks
+                    result["analysis"] = _build_analysis(metrics)
+                    result["verdict"] = _explain_verdict(face_ratio, jaw_ratio, forehead_ratio, face_shape)
+                    result["face_shape"] = face_shape
                     result["face_detected"] = True
                     return result
         except Exception:
