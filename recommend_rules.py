@@ -197,14 +197,33 @@ def recommend(
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.drop_duplicates(subset="glasses_id")
 
-    # b) 度数适配（硬过滤）
-    degree_mask = (df["lens_degree_min"] <= myopia_degree) & (myopia_degree <= df["lens_degree_max"])
-    df = df[degree_mask]
-    rules.append(
-        f"度数适配：近视{myopia_degree}度，仅保留可配度数范围覆盖该度数的镜框（硬过滤，剩{len(df)}款）"
-    )
+    # b) 度数适配（兼容用户输入习惯：正数表示"度数"如300，负数/0 表示屈光度；0 或 None 视为不近视，不硬过滤）
+    normalized_degree: Optional[float] = None
+    if myopia_degree is None or pd.isna(myopia_degree):
+        rules.append("未提供近视度数，跳过度数硬过滤")
+    elif myopia_degree == 0:
+        rules.append("近视度数为 0，可配任何镜框（跳过度数硬过滤）")
+    elif myopia_degree > 0:
+        normalized_degree = -myopia_degree / 100.0
+        rules.append(f"收到正数度数 {myopia_degree}，按屈光度 {normalized_degree:.2f}D 进行适配")
+    else:
+        normalized_degree = float(myopia_degree)
+
+    if normalized_degree is not None:
+        degree_mask = (df["lens_degree_min"] <= normalized_degree) & (normalized_degree <= df["lens_degree_max"])
+        filtered_df = df[degree_mask]
+        rules.append(
+            f"度数适配：近视{normalized_degree:.2f}D，仅保留可配度数范围覆盖该度数的镜框（硬过滤，剩{len(filtered_df)}款）"
+        )
+        if filtered_df.empty:
+            rules.append(
+                f"库存中无完全匹配 {normalized_degree:.2f}D 的镜框，已放宽度数限制，优先按脸型/瞳距推荐"
+            )
+        else:
+            df = filtered_df
+
     if df.empty:
-        rules.append("库存中无适配该度数的镜框，推荐结果为空")
+        rules.append("库存为空，推荐结果为空")
         return [], rules
 
     # a) 脸型 → 镜框形状映射
@@ -220,14 +239,15 @@ def recommend(
         rules.append(f"{face_name}推荐{'/'.join(preferred_shapes)}镜框{reason_tail}")
 
     # c) 折射率建议说明（加分项，不过滤）
-    degree_abs = abs(myopia_degree)
+    degree_for_refraction = normalized_degree if normalized_degree is not None else 0.0
+    degree_abs = abs(degree_for_refraction)
     if degree_abs >= HIGH_MYOPIA_THRESHOLD:
         rules.append(
-            f"高度近视(|{myopia_degree}|≥{HIGH_MYOPIA_THRESHOLD})：折射率1.67/1.74优先（+{SCORE_REFRACTION_HIGH}分）"
+            f"高度近视(|{degree_for_refraction:.2f}|≥{HIGH_MYOPIA_THRESHOLD})：折射率1.67/1.74优先（+{SCORE_REFRACTION_HIGH}分）"
         )
     elif degree_abs >= MID_MYOPIA_THRESHOLD:
         rules.append(
-            f"中度近视(|{myopia_degree}|≥{MID_MYOPIA_THRESHOLD})：建议折射率≥{PREFERRED_INDEX_MID}（+{SCORE_REFRACTION_MID}分）"
+            f"中度近视(|{degree_for_refraction:.2f}|≥{MID_MYOPIA_THRESHOLD}）：建议折射率≥{PREFERRED_INDEX_MID}（+{SCORE_REFRACTION_MID}分）"
         )
 
     # d) 瞳距适配说明
@@ -261,7 +281,7 @@ def recommend(
             item["_face_matched"] = False
 
         # c) 折射率加分
-        bonus, why = _refraction_bonus(myopia_degree, item["lens_refractive_index"])
+        bonus, why = _refraction_bonus(degree_for_refraction, item["lens_refractive_index"])
         if bonus:
             score += bonus
             item_reasons.append(why)

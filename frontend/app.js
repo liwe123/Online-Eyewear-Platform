@@ -57,12 +57,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // 角膜曲率留空时使用默认值 43.0
         const cornealCurvature = ccRaw === '' ? 43.0 : parseFloat(ccRaw);
 
-        if (leftRaw !== '' && (leftEye < -20 || leftEye > 10)) {
-            showToast('左眼度数超出范围（-20 ~ 10），请检查输入', 'warning');
+        if (leftRaw !== '' && (leftEye < -20 || leftEye > 1000)) {
+            showToast('左眼度数超出范围（-20 ~ 1000），请检查输入', 'warning');
             return;
         }
-        if (rightRaw !== '' && (rightEye < -20 || rightEye > 10)) {
-            showToast('右眼度数超出范围（-20 ~ 10），请检查输入', 'warning');
+        if (rightRaw !== '' && (rightEye < -20 || rightEye > 1000)) {
+            showToast('右眼度数超出范围（-20 ~ 1000），请检查输入', 'warning');
             return;
         }
         if (isNaN(pupilDistance) || pupilDistance < 30 || pupilDistance > 80) {
