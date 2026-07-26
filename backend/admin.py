@@ -1,4 +1,7 @@
-"""管理接口模块：眼镜商品的增删改与 CSV 批量导入，均需管理员权限。"""
+"""管理接口模块。
+
+这里负责眼镜商品的增删改查以及 CSV 批量导入，所有接口都要求管理员权限。
+"""
 import csv
 import io
 from typing import Any, Dict, Optional
@@ -35,7 +38,10 @@ _FIELD_CASTERS: Dict[str, Any] = {
 
 
 def _apply_fields(glass: Glasses, data: Dict[str, Any]) -> Optional[str]:
-    """将 data 中的合法字段写入 glass，返回错误信息（无错误返回 None）。"""
+    """把请求里的合法字段写入模型对象。
+
+    返回值为错误信息；如果返回 `None`，说明所有字段都写入成功。
+    """
     for field, caster in _FIELD_CASTERS.items():
         if field not in data:
             continue
@@ -110,7 +116,10 @@ def _decode_csv(raw: bytes) -> Optional[str]:
 @admin_bp.post("/glasses/import")
 @admin_required
 def import_glasses() -> Any:
-    """批量导入眼镜 CSV：列头须与 glasses_data.csv 一致，按 glasses_id upsert。"""
+    """批量导入眼镜 CSV。
+
+    采用按 `glasses_id` upsert 的方式，既能批量导入，也能复用到管理员维护流程。
+    """
     if "file" not in request.files:
         return jsonify({"code": 400, "msg": "缺少 csv 文件（字段名 file）"}), 400
     csv_file = request.files["file"]

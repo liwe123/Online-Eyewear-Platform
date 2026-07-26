@@ -1,6 +1,8 @@
-"""数据模型模块：集中定义 SQLAlchemy 实例与全部数据表。"""
+"""数据模型模块。
+
+这里集中定义数据库实例和所有 ORM 模型，避免在业务代码里重复声明表结构。
+"""
 from datetime import datetime
-from typing import Optional
 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -9,7 +11,10 @@ db: SQLAlchemy = SQLAlchemy()
 
 
 class User(db.Model):
-    """用户表：存储用户的眼部参数（结构保持原样，仅新增可选的账号关联）。"""
+    """用户表。
+
+    记录一次分析时输入的视力参数，并可选关联到登录账号。
+    """
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     pupil_distance = db.Column(db.Float, nullable=False)  # 瞳距
@@ -21,7 +26,10 @@ class User(db.Model):
 
 
 class Glasses(db.Model):
-    """眼镜表：存储眼镜商品信息（对应 glasses_data.csv）。"""
+    """眼镜商品表。
+
+    该表既用于推荐结果展示，也用于商城列表和详情页查询。
+    """
 
     id = db.Column(db.Integer, primary_key=True)
     glasses_id = db.Column(db.String(20), unique=True, nullable=False)  # 眼镜唯一ID
@@ -37,7 +45,7 @@ class Glasses(db.Model):
     brand = db.Column(db.String(120), nullable=True)  # 品牌（真实数据可选）
 
     def to_dict(self) -> dict:
-        """序列化为接口返回字典。"""
+        """把 ORM 对象转换成前端可直接消费的字典。"""
         return {
             "glasses_id": self.glasses_id,
             "name": self.name,
@@ -54,7 +62,10 @@ class Glasses(db.Model):
 
 
 class RecommendRecord(db.Model):
-    """推荐记录表：存储用户的推荐历史。"""
+    """推荐记录表。
+
+    保存用户提交参数对应的脸型和推荐结果，便于后续查询或统计分析。
+    """
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)  # 关联用户
@@ -64,7 +75,10 @@ class RecommendRecord(db.Model):
 
 
 class Account(db.Model):
-    """账号表：注册/登录账号，区分普通用户与管理员角色。"""
+    """账号表。
+
+    负责注册、登录以及管理员权限判断。
+    """
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(20), unique=True, nullable=False)  # 用户名（唯一）

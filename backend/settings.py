@@ -1,8 +1,12 @@
-"""统一配置模块：基于 pydantic-settings，环境变量无前缀或 BACKEND_ 前缀均可生效。"""
+"""统一配置模块。
+
+这里使用 `pydantic-settings` 读取环境变量，并兼容两种写法：
+- `BACKEND_` 前缀（推荐）
+- 无前缀同名变量（便于本地调试和旧部署环境迁移）
+"""
 from pathlib import Path
 from typing import List
 
-from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录（backend/ 的上一级），用于解析默认数据库与数据目录
@@ -11,7 +15,10 @@ DATA_DIR: Path = BASE_DIR / "data"
 
 
 class Settings(BaseSettings):
-    """后端服务配置。环境变量示例：`MODEL_API_URL=...` 或 `BACKEND_MODEL_API_URL=...`。"""
+    """后端服务配置。
+
+    该类只保存运行时需要的最小配置，避免把业务常量散落在各处。
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="BACKEND_",
@@ -30,7 +37,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> List[str]:
-        """将逗号分隔的 CORS_ORIGINS 拆分为列表。"""
+        """把逗号分隔的 `CORS_ORIGINS` 转成列表，供 Flask-CORS 使用。"""
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 

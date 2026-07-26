@@ -1,5 +1,6 @@
 """丹智慧眼 Flask 后端主应用。
 
+负责承载用户提交、商品查询、静态文件服务以及数据库初始化。
 开发启动：
     python backend/backend_main.py
     或 python -m backend.backend_main
@@ -18,6 +19,9 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from loguru import logger
+from sqlalchemy import or_
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
 
 # ---------- 双模式导入：兼容包导入（gunicorn）与脚本直接运行 ----------
 try:
@@ -59,11 +63,15 @@ def _allowed_image(filename: str) -> bool:
 # ---------- Flask 应用装配 ----------
 app = Flask(__name__)
 # 反向代理（Nginx）后取真实客户端 IP，否则限流全部命中代理地址
-from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 CORS(app, origins=settings.cors_origin_list)
 app.config["SQLALCHEMY_DATABASE_URI"] = settings.DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280,
+    "pool_timeout": 30,
+}
 app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGE_SIZE  # 请求体上限 10MB
 
 db.init_app(app)
@@ -94,7 +102,7 @@ def _log_and_secure(response: Any) -> Any:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://localhost:5000 http://127.0.0.1:5000"
     return response
 
 
@@ -109,6 +117,12 @@ def handle_404(_: Any) -> Any:
 def handle_405(_: Any) -> Any:
     """请求方法不允许。"""
     return jsonify({"code": 405, "msg": "请求方法不允许"}), 405
+
+
+@app.errorhandler(413)
+def handle_413(_: Any) -> Any:
+    """请求体过大。"""
+    return jsonify({"code": 413, "msg": f"上传文件过大，最大支持 {MAX_IMAGE_SIZE // (1024 * 1024)}MB"}), 413
 
 
 @app.errorhandler(429)
@@ -140,7 +154,7 @@ def user_submit() -> Any:
         if not image_file.filename:
             return jsonify({"code": 400, "msg": "未选择图片"}), 400
         if not _allowed_image(image_file.filename):
-            return jsonify({"code": 400, "msg": f"不支持的图片格式，仅支持: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+            return jsonify({"code": 400, "msg": f"不支持的图片格式，仅支持: {', '.join(sorted(ALLOWED_EXTENSIONS))}"}), 400
 
         try:
             pupil_distance = float(request.form.get("pupil_distance", 0))
@@ -161,10 +175,13 @@ def user_submit() -> Any:
         if len(image_bytes) > MAX_IMAGE_SIZE:
             return jsonify({"code": 400, "msg": f"图片大小超过限制（最大{MAX_IMAGE_SIZE // (1024 * 1024)}MB）"}), 400
 
+        safe_filename = secure_filename(image_file.filename) or "upload.jpg"
+        content_type = image_file.content_type or "application/octet-stream"
+
         # ---------- 3. 调用模型API识别脸型 ----------
         face_shape_response = requests.post(
             f"{settings.MODEL_API_URL}/predict_face_shape",
-            files={"file": (image_file.filename, image_bytes, image_file.content_type)},
+            files={"file": (safe_filename, image_bytes, content_type)},
             timeout=30,
         )
         if face_shape_response.status_code != 200:
@@ -174,11 +191,11 @@ def user_submit() -> Any:
         if face_shape_data.get("code") != 200:
             return jsonify({"code": 400, "msg": face_shape_data.get("msg", "脸型识别失败")}), 400
         face_shape = face_shape_data["face_shape"]
-        face_metrics = face_shape_data.get("metrics")
-        face_analysis = face_shape_data.get("analysis")
-        face_verdict = face_shape_data.get("verdict")
-        face_landmarks = face_shape_data.get("landmarks")
-        face_landmarks_count = face_shape_data.get("landmarks_count")
+        face_metrics = face_shape_data.get("metrics") or {}
+        face_analysis = face_shape_data.get("analysis") or []
+        face_verdict = face_shape_data.get("verdict") or ""
+        face_landmarks = face_shape_data.get("landmarks") or []
+        face_landmarks_count = face_shape_data.get("landmarks_count") or 0
 
         # ---------- 4. 调用模型API获取推荐 ----------
         recommend_response = requests.post(
@@ -211,7 +228,8 @@ def user_submit() -> Any:
         db.session.flush()
         user_id = user.id
 
-        glasses_ids = ",".join([item["glasses_id"] for item in recommendation])
+        recommendation = recommendation or []
+        glasses_ids = ",".join([item["glasses_id"] for item in recommendation if item.get("glasses_id")])
         record = RecommendRecord(user_id=user_id, glasses_ids=glasses_ids, face_shape=face_shape)
         db.session.add(record)
         db.session.commit()
@@ -273,7 +291,7 @@ def glasses_list() -> Any:
     keyword = request.args.get("keyword")
     if keyword:
         like = f"%{keyword}%"
-        query = query.filter(db.or_(
+        query = query.filter(or_(
             Glasses.frame_shape.like(like),
             Glasses.frame_material.like(like),
             Glasses.glasses_id.like(like),

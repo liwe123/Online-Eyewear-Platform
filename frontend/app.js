@@ -9,152 +9,157 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('face-upload');
-    uploadArea.addEventListener('click', () => fileInput.click());
+    if (uploadArea && fileInput) {
+        uploadArea.addEventListener('click', () => fileInput.click());
 
-    // 文件选择预览
-    fileInput.addEventListener('change', function (e) {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
+        // 文件选择预览
+        fileInput.addEventListener('change', function (e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
 
-        // 文件大小验证
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('文件大小超过5MB，请重新选择', 'warning');
-            this.value = '';
-            return;
-        }
-        if (!file.type.startsWith('image/')) {
-            showToast('请选择图片文件', 'warning');
-            this.value = '';
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const preview = document.getElementById('face-preview');
-            preview.src = e.target.result;
-            preview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // AI智能分析
-    document.getElementById('analyze-btn').addEventListener('click', async function () {
-        const facePreview = document.getElementById('face-preview');
-        if (facePreview.style.display !== 'block') {
-            showToast('请先上传照片！', 'warning');
-            return;
-        }
-
-        // ---------- 客户端数值校验 ----------
-        const leftRaw = document.getElementById('left-eye').value.trim();
-        const rightRaw = document.getElementById('right-eye').value.trim();
-        const pdRaw = document.getElementById('pupil-distance').value.trim();
-        const ccRaw = document.getElementById('corneal-curvature').value.trim();
-
-        const leftEye = parseFloat(leftRaw) || 0;
-        const rightEye = parseFloat(rightRaw) || 0;
-        const pupilDistance = parseFloat(pdRaw);
-        // 角膜曲率留空时使用默认值 43.0
-        const cornealCurvature = ccRaw === '' ? 43.0 : parseFloat(ccRaw);
-
-        if (leftRaw !== '' && (leftEye < -20 || leftEye > 1000)) {
-            showToast('左眼度数超出范围（-20 ~ 1000），请检查输入', 'warning');
-            return;
-        }
-        if (rightRaw !== '' && (rightEye < -20 || rightEye > 1000)) {
-            showToast('右眼度数超出范围（-20 ~ 1000），请检查输入', 'warning');
-            return;
-        }
-        if (isNaN(pupilDistance) || pupilDistance < 30 || pupilDistance > 80) {
-            showToast('瞳距需在 30 ~ 80mm 之间，请检查输入', 'warning');
-            return;
-        }
-        if (isNaN(cornealCurvature) || cornealCurvature < 30 || cornealCurvature > 50) {
-            showToast('角膜曲率需在 30 ~ 50D 之间，请检查输入', 'warning');
-            return;
-        }
-
-        const myopiaDegree = (leftEye + rightEye) / 2;
-
-        const analyzeBtn = this;
-        analyzeBtn.disabled = true;
-        analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>分析中...';
-
-        const formData = new FormData();
-        formData.append('image', fileInput.files[0]);
-        formData.append('pupil_distance', pupilDistance);
-        formData.append('corneal_curvature', cornealCurvature);
-        formData.append('myopia_degree', myopiaDegree);
-
-        try {
-            const result = await apiRequest(API_BASE + '/api/user/submit', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (result.code === 200) {
-                const recs = result.data.recommendation || [];
-                renderFaceReport(result.data);
-                if (result.data.landmarks && result.data.landmarks.length) {
-                    drawLandmarks(result.data.landmarks);
-                }
-                if (recs.length === 0) {
-                    document.getElementById('match-progress').style.width = '60%';
-                    loadRecommendedGlasses([]);
-                    showToast('未找到适配您度数范围的眼镜', 'warning');
-                } else {
-                    document.getElementById('match-progress').style.width = '92%';
-                    loadRecommendedGlasses(recs);
-                }
-            } else {
-                showToast('错误：' + result.msg, 'danger');
+            // 文件大小验证
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('文件大小超过5MB，请重新选择', 'warning');
+                this.value = '';
+                return;
             }
-        } catch (error) {
-            console.error('API调用失败：', error);
-            showToast(error.message || '后端服务未启动或网络错误，请检查后端是否运行', 'danger');
-        } finally {
-            analyzeBtn.disabled = false;
-            analyzeBtn.innerHTML = '<i class="fas fa-magic me-2"></i> AI智能分析';
-        }
-    });
+            if (!file.type.startsWith('image/')) {
+                showToast('请选择图片文件', 'warning');
+                this.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('face-preview');
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    const analyzeBtn = document.getElementById('analyze-btn');
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener('click', async function () {
+            const fileInputEl = document.getElementById('face-upload');
+            const facePreview = document.getElementById('face-preview');
+            if (!fileInputEl || !facePreview || facePreview.style.display !== 'block' || !fileInputEl.files || !fileInputEl.files[0]) {
+                showToast('请先上传照片！', 'warning');
+                return;
+            }
+
+            const leftEyeEl = document.getElementById('left-eye');
+            const rightEyeEl = document.getElementById('right-eye');
+            const pupilDistanceEl = document.getElementById('pupil-distance');
+            const cornealCurvatureEl = document.getElementById('corneal-curvature');
+            const matchProgress = document.getElementById('match-progress');
+            if (!leftEyeEl || !rightEyeEl || !pupilDistanceEl || !cornealCurvatureEl || !matchProgress) {
+                showToast('页面初始化不完整，请刷新后重试', 'danger');
+                return;
+            }
+
+            const leftRaw = leftEyeEl.value.trim();
+            const rightRaw = rightEyeEl.value.trim();
+            const pdRaw = pupilDistanceEl.value.trim();
+            const ccRaw = cornealCurvatureEl.value.trim();
+
+            const leftEye = parseFloat(leftRaw) || 0;
+            const rightEye = parseFloat(rightRaw) || 0;
+            const pupilDistance = parseFloat(pdRaw);
+            const cornealCurvature = ccRaw === '' ? 43.0 : parseFloat(ccRaw);
+
+            if (leftRaw !== '' && (leftEye < -20 || leftEye > 1000)) { showToast('左眼度数超出范围（-20 ~ 1000），请检查输入', 'warning'); return; }
+            if (rightRaw !== '' && (rightEye < -20 || rightEye > 1000)) { showToast('右眼度数超出范围（-20 ~ 1000），请检查输入', 'warning'); return; }
+            if (isNaN(pupilDistance) || pupilDistance < 30 || pupilDistance > 80) { showToast('瞳距需在 30 ~ 80mm 之间，请检查输入', 'warning'); return; }
+            if (isNaN(cornealCurvature) || cornealCurvature < 30 || cornealCurvature > 50) { showToast('角膜曲率需在 30 ~ 50D 之间，请检查输入', 'warning'); return; }
+
+            const myopiaDegree = (leftEye + rightEye) / 2;
+            const btn = this;
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>分析中...';
+
+            const formData = new FormData();
+            formData.append('image', fileInputEl.files[0]);
+            formData.append('pupil_distance', pupilDistance);
+            formData.append('corneal_curvature', cornealCurvature);
+            formData.append('myopia_degree', myopiaDegree);
+
+            try {
+                const result = await apiRequest(API_BASE + '/api/user/submit', { method: 'POST', body: formData });
+                if (result.code === 200) {
+                    const payload = result.data || {};
+                    const recs = payload.recommendation || [];
+                    renderFaceReport(payload);
+                    if (payload.landmarks && payload.landmarks.length) drawLandmarks(payload.landmarks);
+                    matchProgress.style.width = recs.length === 0 ? '60%' : '92%';
+                    loadRecommendedGlasses(recs);
+                    if (recs.length === 0) showToast('未找到适配您度数范围的眼镜', 'warning');
+                } else {
+                    showToast('错误：' + (result.msg || '分析失败'), 'danger');
+                }
+            } catch (error) {
+                console.error('API调用失败：', error);
+                showToast(error.message || '后端服务未启动或网络错误，请检查后端是否运行', 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        });
+    }
 
     // 换一款按钮：循环高亮当前推荐
-    document.getElementById('try-another').addEventListener('click', function () {
-        const recs = window._recommendations;
-        if (!recs || recs.length === 0) {
-            showToast('暂无推荐眼镜，请先进行AI分析', 'info');
-            return;
-        }
-        window._currentIndex = (window._currentIndex + 1) % recs.length;
-        const glass = recs[window._currentIndex];
-        showToast('已切换至：' + (glass.name || glass.frame_shape + '眼镜'), 'success');
-        // 滚动到推荐区域
-        document.getElementById('products').scrollIntoView({ behavior: 'smooth' });
-    });
+    const tryAnotherBtn = document.getElementById('try-another');
+    if (tryAnotherBtn) {
+        tryAnotherBtn.addEventListener('click', function () {
+            const recs = window._recommendations;
+            if (!recs || recs.length === 0) {
+                showToast('暂无推荐眼镜，请先进行AI分析', 'info');
+                return;
+            }
+            window._currentIndex = (window._currentIndex + 1) % recs.length;
+            const glass = recs[window._currentIndex];
+            showToast('已切换至：' + (glass.name || glass.frame_shape + '眼镜'), 'success');
+            const products = document.getElementById('products');
+            if (products) products.scrollIntoView({ behavior: 'smooth' });
+        });
+    }
 
     // 商城查询按钮 & 回车搜索
-    document.getElementById('shop-search-btn').addEventListener('click', function () {
-        shopState.page = 1;
-        loadShopGlasses();
-    });
-    document.getElementById('shop-filter-keyword').addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
+    const shopSearchBtn = document.getElementById('shop-search-btn');
+    const shopKeyword = document.getElementById('shop-filter-keyword');
+    if (shopSearchBtn) {
+        shopSearchBtn.addEventListener('click', function () {
             shopState.page = 1;
             loadShopGlasses();
-        }
-    });
+        });
+    }
+    if (shopKeyword) {
+        shopKeyword.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                shopState.page = 1;
+                loadShopGlasses();
+            }
+        });
+    }
 
-    // 页脚订阅：校验邮箱格式后提示（演示）
-    document.getElementById('subscribe-btn').addEventListener('click', function () {
-        const emailInput = document.getElementById('subscribe-email');
-        const email = emailInput.value.trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            showToast('请输入有效的邮箱地址', 'warning');
-            return;
-        }
-        emailInput.value = '';
-        showToast('订阅成功（演示）', 'success');
-    });
+    const subscribeBtn = document.getElementById('subscribe-btn');
+    if (subscribeBtn) {
+        subscribeBtn.addEventListener('click', function () {
+            const emailInput = document.getElementById('subscribe-email');
+            if (!emailInput) return;
+            const email = emailInput.value.trim();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                showToast('请输入有效的邮箱地址', 'warning');
+                return;
+            }
+            emailInput.value = '';
+            showToast('订阅成功（演示）', 'success');
+        });
+    }
 
 });
 

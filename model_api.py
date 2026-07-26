@@ -128,7 +128,11 @@ def _load_glasses_csv(csv_path: str) -> pd.DataFrame:
 
 
 def _load_resources() -> None:
-    """加载服务资源（启动时调用一次）。"""
+    """加载服务资源（启动时调用一次）。
+
+    这里做的是“只读预热”：提前把眼镜数据和分组索引放进内存，
+    让推荐请求只做轻量过滤，避免每次请求都重新读 CSV。
+    """
     global _resources
 
     # 旧版假模型文件废弃提示（不再加载 .pth/.pkl）
@@ -145,6 +149,7 @@ def _load_resources() -> None:
     logger.info(f"眼镜数据加载完成: {len(glasses_df)} 款，{len(glasses_by_shape)} 种形状")
     logger.info(f"脸型识别引擎: mediapipe {'可用' if is_mediapipe_available() else '不可用（将使用检测框兜底）'}")
 
+    # 将可复用资源集中存放，后续请求直接读取内存对象即可。
     _resources = {
         "glasses_df": glasses_df,
         "glasses_by_shape": glasses_by_shape,
@@ -170,7 +175,10 @@ app = FastAPI(title="丹智慧眼模型API", lifespan=lifespan)
 # ---------- 请求耗时中间件 ----------
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
-    """记录请求耗时，写入 X-Process-Time 响应头。"""
+    """记录请求耗时，写入 X-Process-Time 响应头。
+
+    这个头部主要用于调试和压测观察，不影响业务返回值。
+    """
     start_time = time.time()
     response = await call_next(request)
     elapsed = time.time() - start_time
@@ -196,14 +204,17 @@ async def health_check() -> dict:
 async def predict_face_shape(file: UploadFile = File(...)) -> dict:
     """识别上传人脸照片的脸型。
 
-    未检测到人脸时返回默认脸型「鹅蛋脸」（code 仍为 200，保证主流程不断），
-    method 标识实际使用的识别引擎。
+    设计目标：
+    - 正常情况下返回结构化的几何分析结果；
+    - 未检测到人脸时使用“默认脸型”兜底，避免主流程中断；
+    - 图片损坏或过大时返回明确业务错误，方便前端提示。
     """
     try:
         contents = await file.read()
         if len(contents) > MAX_IMAGE_SIZE:
             return {"code": 400, "msg": "图片大小超过10MB限制"}
 
+        # OpenCV 解码失败通常意味着文件并非可识别图片。
         img = cv2.imdecode(np.frombuffer(contents, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             return {"code": 400, "msg": "图片解码失败，请上传有效的图片文件"}
@@ -216,6 +227,11 @@ async def predict_face_shape(file: UploadFile = File(...)) -> dict:
                 "face_shape": "鹅蛋脸",
                 "msg": "未检测到人脸，使用默认脸型",
                 "method": "default",
+                "metrics": {},
+                "landmarks_count": 0,
+                "landmarks": [],
+                "analysis": [],
+                "verdict": "",
             }
 
         logger.info(
@@ -242,21 +258,25 @@ async def predict_face_shape(file: UploadFile = File(...)) -> dict:
 async def get_recommendation(eye_data: EyeData, face_shape: str = Query(...)) -> dict:
     """按透明规则为用户推荐眼镜。
 
-    参数:
-        eye_data: JSON 请求体（瞳距/角膜曲率/近视度数）。
-        face_shape: query 参数，脸型标签。
+    这里优先做“可解释推荐”：返回结果列表的同时返回命中规则，
+    方便前端展示，也方便后续调试推荐质量。
     """
     try:
+        glasses_df = _resources.get("glasses_df")
+        if glasses_df is None:
+            return {"code": 500, "msg": "推荐资源未加载，请检查服务初始化"}
+
         items, rules = recommend(
             pupil_distance=eye_data.pupil_distance,
             corneal_curvature=eye_data.corneal_curvature,
             myopia_degree=eye_data.myopia_degree,
             face_shape=face_shape,
-            glasses_df=_resources["glasses_df"],
+            glasses_df=glasses_df,
             top_n=DEFAULT_TOP_K,
         )
         recommendation = []
         for item in items:
+            # 只返回前端需要的字段，减少响应体大小，也避免泄露无关内部信息。
             rec = {k: item.get(k) for k in RECOMMEND_FIELDS}
             rec["reason"] = item.get("reason")
             rec["score"] = item.get("score")

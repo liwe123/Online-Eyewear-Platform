@@ -7,6 +7,8 @@ const API_BASE = document.documentElement.dataset.apiBase
         ? `http://${window.location.hostname}:5000`
         : `${window.location.protocol}//${window.location.hostname}`);
 
+const AUTH_KEY = 'dz_auth';
+
 // 请求配置
 const FETCH_TIMEOUT = 30000;  // 30秒超时
 const MAX_RETRIES = 1;         // 重试次数
@@ -71,17 +73,44 @@ function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT) {
  * 带重试的 API 请求
  */
 async function apiRequest(url, options = {}, retries = MAX_RETRIES) {
+    const mergedOptions = { ...options };
+    const authRaw = localStorage.getItem(AUTH_KEY);
+    if (authRaw) {
+        try {
+            const auth = JSON.parse(authRaw);
+            if (auth && auth.token) {
+                mergedOptions.headers = { ...(mergedOptions.headers || {}), Authorization: 'Bearer ' + auth.token };
+            }
+        } catch (e) {
+            localStorage.removeItem(AUTH_KEY);
+        }
+    }
+
     for (let i = 0; i <= retries; i++) {
         try {
-            const response = await fetchWithTimeout(url, options);
-            const result = await response.json();
+            const response = await fetchWithTimeout(url, mergedOptions);
+            const text = await response.text();
+            let result;
+            try {
+                result = text ? JSON.parse(text) : {};
+            } catch (parseError) {
+                result = { code: response.status, msg: text || '响应解析失败' };
+            }
+            if (response.ok) {
+                if (result && typeof result === 'object' && !('code' in result)) {
+                    result.code = 200;
+                }
+                return result;
+            }
+            if (result && typeof result === 'object' && !('code' in result)) {
+                result.code = response.status;
+            }
             return result;
         } catch (error) {
             if (error.name === 'AbortError') {
                 throw new Error('请求超时，请稍后重试');
             }
             if (i === retries) throw error;
-            // 等待后重试
             await new Promise(r => setTimeout(r, 1000));
         }
     }

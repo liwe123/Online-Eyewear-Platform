@@ -102,57 +102,68 @@
     <script src="cart.js"></script>
     <script src="auth.js"></script>
     <script>
-        // 从URL获取眼镜ID（如：detail.html?glasses_id=G001）
-        const urlParams = new URLSearchParams(window.location.search);
-        const glassesId = urlParams.get("glasses_id");
+        document.addEventListener('DOMContentLoaded', function () {
+            const titleEl = document.getElementById('glassesTitle');
+            const imgEl = document.getElementById('glassesImage');
+            const frameShapeEl = document.getElementById('frameShape');
+            const frameSizeEl = document.getElementById('frameSize');
+            const frameMaterialEl = document.getElementById('frameMaterial');
+            const lensDegreeEl = document.getElementById('lensDegree');
+            const lensRefractiveIndexEl = document.getElementById('lensRefractiveIndex');
+            const priceEl = document.getElementById('price');
+            const addCartBtn = document.getElementById('add-cart-btn');
 
-        // 如果没有眼镜ID，返回首页
-        if (!glassesId) {
-            alert("缺少眼镜ID参数");
-            window.location.href = "index.html";
-        }
-
-        // 当前商品数据（供加入购物车使用）
-        let currentGlasses = null;
-
-        // 调用后端接口获取详情
-        apiRequest(`${API_BASE}/api/glasses/detail?glasses_id=${encodeURIComponent(glassesId)}`)
-            .then(result => {
-                if (result.code !== 200) {
-                    throw new Error(result.msg || '获取详情失败');
-                }
-                const data = result.data;
-                currentGlasses = data;
-
-                // 填充页面数据
-                let titleText = data.frame_shape + ' 眼镜 (ID: ' + data.glasses_id + ')';
-                if (data.name) {
-                    titleText = (data.brand ? data.brand + ' · ' : '') + data.name;
-                }
-                document.getElementById("glassesTitle").textContent = titleText;
-                const img = document.getElementById("glassesImage");
-                img.src = resolveImageUrl(data.image_url);
-                setImgFallback(img); // 内联 SVG 回退，不依赖外链
-                document.getElementById("frameShape").textContent = data.frame_shape;
-                document.getElementById("frameSize").textContent = data.frame_size;
-                document.getElementById("frameMaterial").textContent = data.frame_material;
-                document.getElementById("lensDegree").textContent = `${data.lens_degree_min}至${data.lens_degree_max}度`;
-                document.getElementById("lensRefractiveIndex").textContent = data.lens_refractive_index;
-                document.getElementById("price").textContent = `¥${Number(data.price).toFixed(2)}`;
-            })
-            .catch(error => {
-                console.error("获取详情失败：", error);
-                showToast("获取详情失败：" + error.message, "danger");
-                setTimeout(() => { window.location.href = "index.html"; }, 1500);
-            });
-
-        // 加入购物车
-        document.getElementById("add-cart-btn").addEventListener("click", function () {
-            if (!currentGlasses) {
-                showToast("商品信息尚未加载完成", "warning");
+            if (!titleEl || !imgEl || !frameShapeEl || !frameSizeEl || !frameMaterialEl || !lensDegreeEl || !lensRefractiveIndexEl || !priceEl || !addCartBtn) {
+                showToast('详情页初始化失败，页面结构不完整', 'danger');
                 return;
             }
-            addToCart(currentGlasses);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const glassesId = urlParams.get('glasses_id');
+
+            if (!glassesId) {
+                showToast('缺少眼镜ID参数，正在返回首页', 'warning');
+                setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+                return;
+            }
+
+            let currentGlasses = null;
+            titleEl.textContent = '加载中...';
+
+            apiRequest(`${API_BASE}/api/glasses/detail?glasses_id=${encodeURIComponent(glassesId)}`)
+                .then(result => {
+                    if (result.code !== 200) {
+                        throw new Error(result.msg || '获取详情失败');
+                    }
+                    const data = result.data || {};
+                    currentGlasses = data;
+
+                    const titleText = data.name
+                        ? ((data.brand ? data.brand + ' · ' : '') + data.name)
+                        : (data.frame_shape + ' 眼镜 (ID: ' + data.glasses_id + ')');
+                    titleEl.textContent = titleText;
+                    imgEl.src = resolveImageUrl(data.image_url);
+                    setImgFallback(imgEl);
+                    frameShapeEl.textContent = data.frame_shape || '-';
+                    frameSizeEl.textContent = data.frame_size || '-';
+                    frameMaterialEl.textContent = data.frame_material || '-';
+                    lensDegreeEl.textContent = `${data.lens_degree_min ?? '-'}至${data.lens_degree_max ?? '-'}度`;
+                    lensRefractiveIndexEl.textContent = data.lens_refractive_index ?? '-';
+                    priceEl.textContent = `¥${Number(data.price || 0).toFixed(2)}`;
+                })
+                .catch(error => {
+                    console.error('获取详情失败：', error);
+                    showToast('获取详情失败：' + error.message, 'danger');
+                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                });
+
+            addCartBtn.addEventListener('click', function () {
+                if (!currentGlasses) {
+                    showToast('商品信息尚未加载完成', 'warning');
+                    return;
+                }
+                addToCart(currentGlasses);
+            });
         });
     </script>
 </body>

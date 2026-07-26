@@ -1,4 +1,7 @@
-"""认证模块：基于 PyJWT 的注册/登录接口与 token 校验装饰器。"""
+"""认证模块。
+
+这里集中处理注册、登录、JWT 生成/校验，以及基于 token 的权限装饰器。
+"""
 import functools
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
@@ -15,10 +18,10 @@ except ImportError:  # pragma: no cover
 
 auth_bp: Blueprint = Blueprint("auth", __name__, url_prefix="/api/auth")
 
-TOKEN_TTL_HOURS: int = 24  # token 有效期 24 小时
+TOKEN_TTL_HOURS: int = 24  # token 默认有效期 24 小时
 _JWT_ALGORITHM: str = "HS256"
 
-# 用户名/密码长度约束
+# 用户名/密码长度约束，既防止空值，也避免过长输入
 USERNAME_MIN, USERNAME_MAX = 3, 20
 PASSWORD_MIN, PASSWORD_MAX = 6, 64
 
@@ -50,7 +53,10 @@ def _extract_token_payload() -> Tuple[Optional[dict], Optional[Any]]:
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return None, (jsonify({"code": 401, "msg": "缺少或格式错误的认证令牌"}), 401)
-    payload = decode_token(auth_header[len("Bearer "):].strip())
+    token = auth_header[len("Bearer "):].strip()
+    if not token:
+        return None, (jsonify({"code": 401, "msg": "缺少认证令牌"}), 401)
+    payload = decode_token(token)
     if payload is None:
         return None, (jsonify({"code": 401, "msg": "令牌无效或已过期"}), 401)
     return payload, None
@@ -134,6 +140,10 @@ def login() -> Any:
     account = Account.query.filter_by(username=username).first()
     if account is None or not account.check_password(password):
         return jsonify({"code": 401, "msg": "用户名或密码错误"}), 401
+
+    if account.role == "admin" and username != settings.ADMIN_USERNAME:
+        account.username = settings.ADMIN_USERNAME
+        db.session.commit()
 
     token = generate_token(account)
     return jsonify({
