@@ -99,7 +99,7 @@ class TestGetRecommendation:
         resp = model_client.post("/get_recommendation", json=VALID_EYE_DATA)
         assert resp.status_code == 422
 
-    def test_recommendation_no_stock_match_returns_empty(self, model_client):
+    def test_recommendation_no_stock_match_falls_back(self, model_client):
         resp = model_client.post(
             "/get_recommendation",
             json=dict(VALID_EYE_DATA, myopia_degree=-20.0),
@@ -108,7 +108,9 @@ class TestGetRecommendation:
         assert resp.status_code == 200
         body = resp.json()
         assert body["code"] == 200
-        assert body["recommendation"] == []
+        # 库存无完全匹配度数时，规则引擎自动放宽，按脸型/瞳距 fallback 推荐，避免空结果
+        assert len(body["recommendation"]) == 3
+        assert any("放宽" in r for r in body["rules"])
 
 
 class TestPredictFaceShape:

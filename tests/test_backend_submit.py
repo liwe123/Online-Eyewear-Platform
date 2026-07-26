@@ -86,7 +86,9 @@ class TestSubmitFlow:
         assert resp.headers["X-Content-Type-Options"] == "nosniff"
         assert resp.headers["X-Frame-Options"] == "DENY"
         assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
-        assert resp.headers["Content-Security-Policy"] == "default-src 'self'"
+        csp = resp.headers["Content-Security-Policy"]
+        assert csp.startswith("default-src 'self'")
+        assert "img-src" in csp and "script-src" in csp and "style-src" in csp
 
 
 class TestSubmitValidation:

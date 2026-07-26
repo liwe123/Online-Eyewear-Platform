@@ -53,15 +53,16 @@ class TestDegreeHardFilter:
         assert returned_ids.isdisjoint({"R005", "R011", "R012"})
         assert len(items) == 3
 
-    def test_no_match_returns_empty_with_rules(self, glasses_df):
+    def test_no_match_falls_back_with_rules(self, glasses_df):
         items, rules = recommend(
             pupil_distance=NO_PD_BONUS_PD, corneal_curvature=43.0,
             myopia_degree=-20.0, face_shape="方形",
             glasses_df=glasses_df, top_n=3,
         )
-        assert items == []
+        # 库存无完全匹配度数时，规则引擎自动放宽，按脸型/瞳距 fallback 推荐
+        assert len(items) == 3
         assert len(rules) >= 1
-        assert any("无适配" in r for r in rules)
+        assert any("放宽" in r for r in rules)
 
     def test_boundary_degree_included(self, glasses_df):
         # R005 范围 -2.0~0.0，-2.0 为边界值应被保留
