@@ -114,8 +114,11 @@ class TestFaceShapeMapping:
             glasses_df=glasses_df, top_n=3,
         )
         assert any("未识别的脸型" in r for r in rules)
-        # 脸型维度不打分：无任何加分项的条目应给出「基础推荐」
-        assert any(it["reason"] == "基础推荐" for it in items)
+        # 未识别脸型不应被当作「百搭」：脸型维度一律不打分，所有条目均无 +40 脸型分
+        assert all(it["score"] == 0 for it in items)
+        assert any("已放宽脸型限制" in r for r in rules)
+        # 放宽补满后，无任何加分项的条目给出「基础推荐」（带放宽前缀）
+        assert any(it["reason"].endswith("基础推荐") for it in items)
 
 
 class TestScoring:
@@ -216,3 +219,41 @@ class TestResultContract:
                 NO_PD_BONUS_PD, 43.0, -3.0, "方形", glasses_df, top_n=n,
             )
             assert len(items) == n
+
+
+class TestTopNClamp:
+    """top_n 防御性钳制：max(1, min(int(top_n), 100))。"""
+
+    def test_top_n_zero_clamped_to_one(self, glasses_df):
+        items, _ = recommend(NO_PD_BONUS_PD, 43.0, -3.0, "方形", glasses_df, top_n=0)
+        assert len(items) == 1
+
+    def test_top_n_negative_clamped_to_one(self, glasses_df):
+        items, _ = recommend(NO_PD_BONUS_PD, 43.0, -3.0, "方形", glasses_df, top_n=-5)
+        assert len(items) == 1
+
+    def test_top_n_large_capped_at_100(self, glasses_df):
+        # 库存仅 12 款，top_n=1000 被钳制到 100 → 全部返回
+        items, _ = recommend(NO_PD_BONUS_PD, 43.0, None, "方形", glasses_df, top_n=1000)
+        assert len(items) <= 100
+        assert len(items) == len(glasses_df)
+
+
+class TestMyopiaDegreePaths:
+    """myopia_degree 为 None / 0 / 正数时的规则文案。"""
+
+    def test_myopia_none_rule(self, glasses_df):
+        _, rules = recommend(NO_PD_BONUS_PD, 43.0, None, "方形", glasses_df, top_n=3)
+        assert any("未提供近视度数" in r for r in rules)
+
+    def test_myopia_zero_rule(self, glasses_df):
+        _, rules = recommend(NO_PD_BONUS_PD, 43.0, 0, "方形", glasses_df, top_n=3)
+        assert any("近视度数为 0" in r for r in rules)
+        assert any("跳过度数硬过滤" in r for r in rules)
+
+    def test_myopia_positive_degree_rule(self, glasses_df):
+        # 正数 300 按「度数」换算为屈光度 -3.00D
+        items, rules = recommend(NO_PD_BONUS_PD, 43.0, 300, "方形", glasses_df, top_n=3)
+        assert any("收到正数度数 300" in r for r in rules)
+        assert any("按屈光度 -3.00D" in r for r in rules)
+        assert len(items) == 3

@@ -19,7 +19,9 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from loguru import logger
-from sqlalchemy import or_
+from sqlalchemy import Engine, event, or_
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
@@ -67,12 +69,30 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 CORS(app, origins=settings.cors_origin_list)
 app.config["SQLALCHEMY_DATABASE_URI"] = settings.DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+_engine_options: dict = {
     "pool_pre_ping": True,
     "pool_recycle": 280,
     "pool_timeout": 30,
 }
+# SQLite 在多进程（gunicorn -w 4）下容易出现“database is locked”，
+# 这里开启 WAL 模式与忙等待，降低并发写冲突概率。
+if settings.DATABASE_URL.startswith("sqlite"):
+    _engine_options["connect_args"] = {"check_same_thread": False, "timeout": 30}
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = _engine_options
 app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGE_SIZE  # 请求体上限 10MB
+
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection: Any, connection_record: Any) -> None:
+    """每个 SQLite 连接建立时开启 WAL 模式并设置忙等待超时（30 秒）。"""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+    finally:
+        cursor.close()
 
 db.init_app(app)
 app.register_blueprint(auth_bp)
@@ -107,6 +127,12 @@ def _log_and_secure(response: Any) -> Any:
 
 
 # ---------- 统一 JSON 错误格式 ----------
+@app.errorhandler(400)
+def handle_400(_: Any) -> Any:
+    """请求格式错误。"""
+    return jsonify({"code": 400, "msg": "请求格式错误"}), 400
+
+
 @app.errorhandler(404)
 def handle_404(_: Any) -> Any:
     """资源不存在。"""
@@ -255,6 +281,9 @@ def user_submit() -> Any:
     except requests.exceptions.ConnectionError:
         db.session.rollback()
         return jsonify({"code": 500, "msg": "模型服务连接失败，请检查服务是否启动"}), 500
+    except RequestEntityTooLarge:
+        db.session.rollback()
+        return jsonify({"code": 413, "msg": f"上传文件过大，最大支持 {MAX_IMAGE_SIZE // (1024 * 1024)}MB"}), 413
     except Exception:
         db.session.rollback()
         logger.exception("用户提交接口异常")
@@ -274,50 +303,60 @@ def glasses_list() -> Any:
     except (ValueError, TypeError):
         return jsonify({"code": 400, "msg": "page/page_size 必须为整数"}), 400
 
-    query = Glasses.query
-    frame_shape = request.args.get("frame_shape")
-    if frame_shape:
-        query = query.filter(Glasses.frame_shape == frame_shape)
-    material = request.args.get("material")
-    if material:
-        query = query.filter(Glasses.frame_material == material)
     try:
-        if request.args.get("min_price") is not None:
-            query = query.filter(Glasses.price >= float(request.args["min_price"]))
-        if request.args.get("max_price") is not None:
-            query = query.filter(Glasses.price <= float(request.args["max_price"]))
-    except (ValueError, TypeError):
-        return jsonify({"code": 400, "msg": "min_price/max_price 必须为数字"}), 400
-    keyword = request.args.get("keyword")
-    if keyword:
-        like = f"%{keyword}%"
-        query = query.filter(or_(
-            Glasses.frame_shape.like(like),
-            Glasses.frame_material.like(like),
-            Glasses.glasses_id.like(like),
-        ))
+        query = Glasses.query
+        frame_shape = request.args.get("frame_shape")
+        if frame_shape:
+            query = query.filter(Glasses.frame_shape == frame_shape)
+        material = request.args.get("material")
+        if material:
+            query = query.filter(Glasses.frame_material == material)
+        try:
+            if request.args.get("min_price") is not None:
+                query = query.filter(Glasses.price >= float(request.args["min_price"]))
+            if request.args.get("max_price") is not None:
+                query = query.filter(Glasses.price <= float(request.args["max_price"]))
+        except (ValueError, TypeError):
+            return jsonify({"code": 400, "msg": "min_price/max_price 必须为数字"}), 400
+        keyword = request.args.get("keyword")
+        if keyword:
+            like = f"%{keyword}%"
+            query = query.filter(or_(
+                Glasses.frame_shape.like(like),
+                Glasses.frame_material.like(like),
+                Glasses.glasses_id.like(like),
+            ))
 
-    total = query.count()
-    items = query.order_by(Glasses.id).offset((page - 1) * page_size).limit(page_size).all()
-    return jsonify({
-        "code": 200,
-        "data": {
-            "items": [item.to_dict() for item in items],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-        },
-    })
+        total = query.count()
+        items = query.order_by(Glasses.id).offset((page - 1) * page_size).limit(page_size).all()
+        return jsonify({
+            "code": 200,
+            "data": {
+                "items": [item.to_dict() for item in items],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        })
+    except Exception:
+        logger.exception("眼镜列表接口异常")
+        return jsonify({"code": 500, "msg": "服务器内部错误"}), 500
 
 
 @app.get("/api/glasses/detail")
 def glasses_detail() -> Any:
     """眼镜详情接口：根据 glasses_id 查询详情。"""
-    glasses_id = request.args.get("glasses_id")
-    glass = Glasses.query.filter_by(glasses_id=glasses_id).first()
-    if not glass:
-        return jsonify({"code": 404, "msg": "眼镜不存在"}), 404
-    return jsonify({"code": 200, "data": glass.to_dict()})
+    try:
+        glasses_id = request.args.get("glasses_id")
+        if glasses_id is None:
+            return jsonify({"code": 400, "msg": "缺少 glasses_id 参数"}), 400
+        glass = Glasses.query.filter_by(glasses_id=glasses_id).first()
+        if not glass:
+            return jsonify({"code": 404, "msg": "眼镜不存在"}), 404
+        return jsonify({"code": 200, "data": glass.to_dict()})
+    except Exception:
+        logger.exception("眼镜详情接口异常")
+        return jsonify({"code": 500, "msg": "服务器内部错误"}), 500
 
 
 @app.get("/static/glasses/<path:filename>")
@@ -333,23 +372,32 @@ for _endpoint in ("auth.register", "auth.login", "user_submit"):
 
 # ---------- 数据库初始化 ----------
 def _load_glasses_from_df(glasses_df: Any) -> None:
-    """将 DataFrame 中的眼镜数据导入数据库。"""
-    for _, row in glasses_df.iterrows():
-        glass = Glasses(
-            glasses_id=row["glasses_id"],
-            frame_shape=row["frame_shape"],
-            frame_size=row["frame_size"],
-            frame_material=row["frame_material"],
-            lens_degree_min=float(row["lens_degree_min"]),
-            lens_degree_max=float(row["lens_degree_max"]),
-            lens_refractive_index=float(row["lens_refractive_index"]),
-            price=float(row["price"]),
-            image_url=row["image_url"],
-            name=str(row["name"]).strip() if row.get("name") is not None and str(row["name"]).strip() else None,
-            brand=str(row["brand"]).strip() if row.get("brand") is not None and str(row["brand"]).strip() else None,
-        )
-        db.session.add(glass)
-    db.session.commit()
+    """将 DataFrame 中的眼镜数据导入数据库。
+
+    多进程（gunicorn）部署下多个 worker 可能同时通过 count()==0 检查并重复插入，
+    这里捕获 IntegrityError 回滚并告警，避免初始化阶段崩溃。
+    """
+    try:
+        for _, row in glasses_df.iterrows():
+            glass = Glasses(
+                glasses_id=row["glasses_id"],
+                frame_shape=row["frame_shape"],
+                frame_size=row["frame_size"],
+                frame_material=row["frame_material"],
+                lens_degree_min=float(row["lens_degree_min"]),
+                lens_degree_max=float(row["lens_degree_max"]),
+                lens_refractive_index=float(row["lens_refractive_index"]),
+                price=float(row["price"]),
+                image_url=row["image_url"],
+                name=str(row["name"]).strip() if row.get("name") is not None and str(row["name"]).strip() else None,
+                brand=str(row["brand"]).strip() if row.get("brand") is not None and str(row["brand"]).strip() else None,
+            )
+            db.session.add(glass)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        logger.warning("眼镜数据导入遇主键冲突已回滚（多进程并发初始化时属正常情况）")
+        raise
 
 
 def init_db() -> None:
@@ -386,9 +434,9 @@ init_db()
 
 # 生产环境使用默认密钥/口令时给出醒目警告
 if settings.SECRET_KEY == "dev-secret-do-not-use-in-production-change-me":
-    logger.warning("⚠️ 正在使用默认 SECRET_KEY，生产环境必须通过环境变量覆盖！")
+    logger.warning("正在使用默认 SECRET_KEY，生产环境必须通过环境变量覆盖！")
 if settings.ADMIN_PASSWORD == "admin123":
-    logger.warning("⚠️ 正在使用默认 ADMIN_PASSWORD(admin123)，生产环境必须通过环境变量覆盖！")
+    logger.warning("正在使用默认 ADMIN_PASSWORD(admin123)，生产环境必须通过环境变量覆盖！")
 
 
 # ---------- 启动服务 ----------

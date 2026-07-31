@@ -7,9 +7,13 @@
 - endpoint 级 10/minute 限流曾因包装结果未赋回 app.view_functions 而不生效，
  现已修复，对应用例正常运行（原 xfail 已转 XPASS）。
 """
+import io
+
 import pytest
+import requests
 
 from conftest import (
+    FakeResponse,
     MOCK_FACE_SHAPE,
     MOCK_RECOMMENDATION,
     backend_main,
@@ -136,6 +140,128 @@ class TestSubmitValidation:
         with backend_main.app.app_context():
             assert User.query.count() == 0
             assert RecommendRecord.query.count() == 0
+
+    def test_request_body_too_large_no_db_write(self, client, png_bytes):
+        """请求体超过 MAX_CONTENT_LENGTH(10MB) → 413 且不落库。
+
+        user_submit 通过显式 except RequestEntityTooLarge 返回 413，
+        不落库是稳定契约。
+        """
+        data = dict(VALID_FORM)
+        big = io.BytesIO(b"\0" * (10 * 1024 * 1024 + 1024))
+        data["image"] = (big, "big.png", "image/png")
+        resp = client.post("/api/user/submit", data=data,
+                           content_type="multipart/form-data")
+        assert resp.status_code == 413
+        assert resp.get_json()["code"] == 413
+        with backend_main.app.app_context():
+            assert User.query.count() == 0
+            assert RecommendRecord.query.count() == 0
+
+    def test_auth_request_too_large_413_handler(self, client):
+        """验证全局 413 错误处理器的自定义 body（未被子路由吞掉的路径）。
+
+        登录路由的 request.get_json() 不会吞掉 RequestEntityTooLarge，
+        超限 JSON 请求体应触发 413 handler 并返回 {"code":413, ...}。
+        """
+        huge_json = b'{"username": "a' + b"x" * (10 * 1024 * 1024) + b'"}'
+        resp = client.post("/api/auth/login", data=huge_json,
+                           content_type="application/json")
+        assert resp.status_code == 413
+        body = resp.get_json()
+        assert body["code"] == 413
+        assert "10MB" in body["msg"]
+
+
+class TestModelServiceFailure:
+    """模型服务故障分支（此前未覆盖的关键缺口）。
+
+    模拟 requests.post 抛错 / 返回非 200 / body.code != 200，
+    断言：返回真实 HTTP 错误码、错误码契约一致、且不产生任何落库数据。
+    """
+
+    def _assert_no_db_write(self):
+        with backend_main.app.app_context():
+            assert User.query.count() == 0
+            assert RecommendRecord.query.count() == 0
+
+    def test_model_timeout_500(self, client, png_bytes, monkeypatch):
+        """requests.exceptions.Timeout → rollback + 500 JSON，无落库。"""
+        def _timeout(url, **kwargs):
+            raise requests.exceptions.Timeout("simulated timeout")
+        monkeypatch.setattr(requests, "post", _timeout)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 500
+        body = resp.get_json()
+        assert body["code"] == 500
+        assert "超时" in body["msg"]
+        self._assert_no_db_write()
+
+    def test_model_connection_error_500(self, client, png_bytes, monkeypatch):
+        """requests.exceptions.ConnectionError → rollback + 500 JSON，无落库。"""
+        def _conn_error(url, **kwargs):
+            raise requests.exceptions.ConnectionError("simulated conn error")
+        monkeypatch.setattr(requests, "post", _conn_error)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 500
+        body = resp.get_json()
+        assert body["code"] == 500
+        assert "连接失败" in body["msg"]
+        self._assert_no_db_write()
+
+    def test_face_shape_http_error_400(self, client, png_bytes, monkeypatch):
+        """模型返回 HTTP != 200（脸型识别）→ 400「脸型识别失败」，无落库。"""
+        def _fake(url, **kwargs):
+            return FakeResponse({"code": 500, "msg": "server error"}, status_code=500)
+        monkeypatch.setattr(requests, "post", _fake)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert body["msg"] == "脸型识别失败"
+        self._assert_no_db_write()
+
+    def test_face_shape_body_code_error_400(self, client, png_bytes, monkeypatch):
+        """模型 body.code != 200（脸型识别）→ 400，透出模型 msg，无落库。"""
+        def _fake(url, **kwargs):
+            return FakeResponse({"code": 500, "msg": "识别服务内部错误"})
+        monkeypatch.setattr(requests, "post", _fake)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert "识别服务内部错误" in body["msg"]
+        self._assert_no_db_write()
+
+    def test_recommend_http_error_400(self, client, png_bytes, monkeypatch):
+        """模型返回 HTTP != 200（推荐）→ 400「推荐失败」，无落库。"""
+        def _fake(url, **kwargs):
+            if url.endswith("/predict_face_shape"):
+                return FakeResponse({"code": 200, "face_shape": MOCK_FACE_SHAPE,
+                                     "msg": "识别成功", "method": "geometric"})
+            return FakeResponse({"code": 500, "msg": "server error"}, status_code=500)
+        monkeypatch.setattr(requests, "post", _fake)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert body["msg"] == "推荐失败"
+        self._assert_no_db_write()
+
+    def test_recommend_body_code_error_400(self, client, png_bytes, monkeypatch):
+        """模型 body.code != 200（推荐）→ 400，透出模型 msg，无落库。"""
+        def _fake(url, **kwargs):
+            if url.endswith("/predict_face_shape"):
+                return FakeResponse({"code": 200, "face_shape": MOCK_FACE_SHAPE,
+                                     "msg": "识别成功", "method": "geometric"})
+            return FakeResponse({"code": 500, "msg": "推荐服务内部错误"})
+        monkeypatch.setattr(requests, "post", _fake)
+        resp = _submit(client, png_bytes)
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert "推荐服务内部错误" in body["msg"]
+        self._assert_no_db_write()
 
 
 class TestRateLimit:

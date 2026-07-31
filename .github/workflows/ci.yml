@@ -3,8 +3,32 @@ name: CI
 on:
   push:
     branches: [master, main]
+    # 仅改动基础设施文件时跳过 CI（依赖较重：torch/mediapipe 安装耗时）。
+    # pip 缓存由 actions/setup-python 的 cache: pip 提供，见下方 test 步骤。
+    paths-ignore:
+      - "Dockerfile*"
+      - "docker-compose.yml"
+      - "nginx/**"
+      - ".github/workflows/**"
+      - "*.bat"
+      - ".gitignore"
+      - ".dockerignore"
+      - "requirements*.txt"
+      - "backend/requirements.txt"
+      - ".env.example"
   pull_request:
     branches: [master, main]
+    paths-ignore:
+      - "Dockerfile*"
+      - "docker-compose.yml"
+      - "nginx/**"
+      - ".github/workflows/**"
+      - "*.bat"
+      - ".gitignore"
+      - ".dockerignore"
+      - "requirements*.txt"
+      - "backend/requirements.txt"
+      - ".env.example"
 
 jobs:
   test:

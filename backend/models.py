@@ -69,7 +69,7 @@ class RecommendRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)  # 关联用户
-    glasses_ids = db.Column(db.String(100), nullable=False)  # 推荐的眼镜ID（逗号分隔）
+    glasses_ids = db.Column(db.Text, nullable=False)  # 推荐的眼镜ID（逗号分隔，可能超过100字符）
     face_shape = db.Column(db.String(20), nullable=False)  # 识别的脸型
     create_time = db.Column(db.DateTime, default=datetime.now)  # 创建时间
 

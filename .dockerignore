@@ -6,3 +6,7 @@ __pycache__
 **/__pycache__
 .git
 .workbuddy
+# 用户上传内容：不得打进镜像
+uploads/
+# 密钥等敏感文件：不得进入构建上下文
+.env*

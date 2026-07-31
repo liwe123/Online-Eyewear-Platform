@@ -34,18 +34,62 @@ for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command ^
    } else { 'python' }"`) do set "PYTHON=%%i"
 
 if "%PYTHON%"=="" set "PYTHON=python"
-echo [√] 使用 Python: %PYTHON%
+
+:: ---- 校验 Python 版本（需 3.x）----
+"%PYTHON%" --version >nul 2>nul
+if errorlevel 1 (
+    echo [X] 无法运行 Python 解释器: %PYTHON%
+    echo     请先安装 Python 3 并确保其可用，或创建 .venv 虚拟环境。
+    pause
+    exit /b 1
+)
+for /f "delims=" %%v in ('%PYTHON% --version 2^>^&1') do set "PYVER=%%v"
+echo %PYVER% | findstr /r /c:"Python 3\." >nul
+if errorlevel 1 (
+    echo [X] 需要 Python 3.x，当前为: %PYVER%
+    pause
+    exit /b 1
+)
+echo [√] 使用 Python: %PYVER%
 echo.
 
 :: ---- 启动模型API (端口 8000) ----
 echo [1/3] 启动模型API服务 (端口 8000)...
 start "丹智慧眼-模型API" cmd /c "cd /d %PROJECT_DIR% && "%PYTHON%" model_api.py"
-timeout /t 6 /nobreak >nul
+
+:: 等待模型API就绪（轮询 /health，最长 60 秒）
+set /a MODEL_TRIES=0
+:wait_model
+curl -sf http://localhost:8000/health >nul 2>nul
+if not errorlevel 1 goto model_ready
+set /a MODEL_TRIES+=1
+if %MODEL_TRIES% geq 60 (
+    echo [X] 模型API 60 秒内未就绪，请检查 http://localhost:8000/health
+    goto model_ready
+)
+timeout /t 1 /nobreak >nul
+goto wait_model
+:model_ready
+echo [√] 模型API已就绪
 
 :: ---- 启动后端 (端口 5000) ----
 echo [2/3] 启动后端服务 (端口 5000)...
 start "丹智慧眼-后端" cmd /c "cd /d %PROJECT_DIR% && "%PYTHON%" backend/backend_main.py"
-timeout /t 3 /nobreak >nul
+
+:: 等待后端就绪（后端无 /health，轮询 /api/glasses/list，最长 60 秒）
+set /a BACKEND_TRIES=0
+:wait_backend
+curl -sf http://localhost:5000/api/glasses/list >nul 2>nul
+if not errorlevel 1 goto backend_ready
+set /a BACKEND_TRIES+=1
+if %BACKEND_TRIES% geq 60 (
+    echo [X] 后端 60 秒内未就绪，请检查 http://localhost:5000
+    goto backend_ready
+)
+timeout /t 1 /nobreak >nul
+goto wait_backend
+:backend_ready
+echo [√] 后端已就绪
 
 :: ---- 启动前端 (端口 5500) ----
 echo [3/3] 启动前端页面 (端口 5500)...

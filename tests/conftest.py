@@ -29,6 +29,10 @@ for _p in (str(PROJECT_ROOT), str(BACKEND_DIR)):
 _TEST_TMP = Path(tempfile.mkdtemp(prefix="dzy_pytest_"))
 os.environ["BACKEND_DATABASE_URL"] = f"sqlite:///{(_TEST_TMP / 'test.db').as_posix()}"
 os.environ["BACKEND_LOG_LEVEL"] = "WARNING"
+# 禁止测试期间为中文路径建系统盘 junction（mediapipe / YuNet 模型，保持测试纯净）
+os.environ["DZHY_DISABLE_JUNCTION"] = "1"
+# 禁止测试期间触发 YuNet 模型联网下载（保持测试离线、无网络依赖）
+os.environ["DZHY_DISABLE_YUNET"] = "1"
 
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402

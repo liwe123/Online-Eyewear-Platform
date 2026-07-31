@@ -65,7 +65,16 @@ function escapeJsString(value) {
 function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
-    return fetch(url, { ...options, signal: controller.signal })
+    // 支持外部传入 signal（例如切换筛选时取消上一次请求）
+    if (options.signal) {
+        if (options.signal.aborted) {
+            controller.abort();
+        } else {
+            options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+    }
+    const { signal: _externalSignal, ...restOptions } = options;
+    return fetch(url, { ...restOptions, signal: controller.signal })
         .finally(() => clearTimeout(timer));
 }
 
@@ -96,6 +105,15 @@ async function apiRequest(url, options = {}, retries = MAX_RETRIES) {
             } catch (parseError) {
                 result = { code: response.status, msg: text || '响应解析失败' };
             }
+            // 401 登录过期：清除本地凭据并提示重新登录（登录接口本身除外）
+            if (response.status === 401 && url.indexOf('/auth/login') === -1) {
+                if (typeof logout === 'function') {
+                    logout('登录已过期，请重新登录');
+                } else {
+                    localStorage.removeItem(AUTH_KEY);
+                    showToast('登录已过期，请重新登录', 'warning');
+                }
+            }
             if (response.ok) {
                 if (result && typeof result === 'object' && !('code' in result)) {
                     result.code = 200;
@@ -108,6 +126,9 @@ async function apiRequest(url, options = {}, retries = MAX_RETRIES) {
             return result;
         } catch (error) {
             if (error.name === 'AbortError') {
+                if (options.signal && options.signal.aborted) {
+                    throw new Error('请求已取消'); // 外部信号中止（切换筛选等），不再重试
+                }
                 throw new Error('请求超时，请稍后重试');
             }
             if (i === retries) throw error;
@@ -142,7 +163,7 @@ function showToast(message, type) {
     var colors = {
         info: '#1a1a2e',
         danger: '#dc3545',
-        warning: '#c9a96e',
+        warning: '#a8792f',
         success: '#34c759'
     };
 

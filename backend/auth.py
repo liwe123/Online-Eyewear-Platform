@@ -8,6 +8,8 @@ from typing import Any, Callable, Optional, Tuple
 
 import jwt
 from flask import Blueprint, g, jsonify, request
+from loguru import logger
+from sqlalchemy.exc import SQLAlchemyError
 
 try:  # 支持包导入（gunicorn）与脚本直接运行两种方式
     from .models import Account, db
@@ -113,8 +115,8 @@ def get_current_account_optional() -> Optional[Account]:
 def register() -> Any:
     """注册接口：校验用户名/密码长度，重名返回 400。"""
     data = request.get_json(silent=True) or {}
-    username = str(data.get("username", "")).strip()
-    password = str(data.get("password", ""))
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
 
     if not (USERNAME_MIN <= len(username) <= USERNAME_MAX):
         return jsonify({"code": 400, "msg": f"用户名长度须为{USERNAME_MIN}-{USERNAME_MAX}个字符"}), 400
@@ -126,7 +128,12 @@ def register() -> Any:
     account = Account(username=username, role="user")
     account.set_password(password)
     db.session.add(account)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.exception("注册接口提交失败")
+        return jsonify({"code": 500, "msg": "数据保存失败，请稍后重试"}), 500
     return jsonify({"code": 200, "msg": "注册成功", "data": {"user_id": account.id}})
 
 
@@ -134,8 +141,8 @@ def register() -> Any:
 def login() -> Any:
     """登录接口：验证成功返回 token，失败统一返回 401。"""
     data = request.get_json(silent=True) or {}
-    username = str(data.get("username", "")).strip()
-    password = str(data.get("password", ""))
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
 
     account = Account.query.filter_by(username=username).first()
     if account is None or not account.check_password(password):
@@ -143,7 +150,11 @@ def login() -> Any:
 
     if account.role == "admin" and username != settings.ADMIN_USERNAME:
         account.username = settings.ADMIN_USERNAME
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            logger.warning("admin 账号重命名提交失败，已跳过（不影响登录）")
 
     token = generate_token(account)
     return jsonify({

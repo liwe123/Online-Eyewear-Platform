@@ -1,27 +1,37 @@
 version: "3.9"
 
 services:
-  # FastAPI 模型服务（8000）
+  # FastAPI 模型服务（8000，仅本机可访问）
   model:
     build:
       context: .
       dockerfile: Dockerfile.model
     container_name: dzhy-model
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data:ro   # 数据只读挂载
+    mem_limit: 2g
+    healthcheck:
+      # python:3.11-slim 无 curl，用内置 urllib 探测 /health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - dznet
 
-  # Flask 后端（5000）
+  # Flask 后端（5000，仅本机可访问）
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     container_name: dzhy-backend
+    restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     environment:
       MODEL_API_URL: http://model:8000
       # 安全关键配置：生产部署必须通过 .env 或环境变量覆盖，勿用默认值
@@ -32,8 +42,17 @@ services:
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/backend.db}
     volumes:
       - ./data:/app/data      # sqlite 落盘需要可写
+    mem_limit: 1g
+    # 后端无 /health 路由，用轻量列表接口探测就绪
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/glasses/list')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
-      - model
+      model:
+        condition: service_healthy
     networks:
       - dznet
 
@@ -43,10 +62,19 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     container_name: dzhy-frontend
+    restart: unless-stopped
     ports:
       - "5500:80"
+    healthcheck:
+      # nginx:alpine（busybox）自带 wget
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - dznet
 
@@ -56,12 +84,19 @@ services:
     image: postgres:16-alpine
     container_name: dzhy-db
     profiles: ["prod"]
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dzhy}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?please set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-dzhy}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dzhy} -d ${POSTGRES_DB:-dzhy}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - dznet
 

@@ -93,7 +93,8 @@ function renderCartModal() {
 
     let total = 0;
     const rows = cart.map(item => {
-        const subtotal = item.price * item.qty;
+        const unitPrice = Number(item.price || 0);
+        const subtotal = unitPrice * item.qty;
         total += subtotal;
         // 数据来自后端库（admin CRUD / CSV 导入），渲染前转义防存储型 XSS
         const safeShape = escapeHtml(item.frame_shape);
@@ -109,14 +110,14 @@ function renderCartModal() {
                  onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'300\' height=\'200\' viewBox=\'0 0 300 200\'%3E%3Crect fill=\'%23f0f0f0\' width=\'300\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-size=\'16\' font-family=\'sans-serif\' text-anchor=\'middle\' x=\'150\' y=\'105\'%3E图片加载失败%3C/text%3E%3C/svg%3E';">
             <div class="cart-item-info">
                 <div class="cart-item-name">${displayName}</div>
-                <div class="cart-item-price">¥${item.price.toFixed(2)}</div>
+                <div class="cart-item-price">¥${unitPrice.toFixed(2)}</div>
             </div>
             <div class="cart-item-qty">
                 <button type="button" class="qty-btn" onclick="changeCartQty('${safeIdAttr}', -1)">−</button>
                 <span>${parseInt(item.qty, 10) || 1}</span>
                 <button type="button" class="qty-btn" onclick="changeCartQty('${safeIdAttr}', 1)">+</button>
             </div>
-            <div class="cart-item-subtotal">¥${subtotal.toFixed(2)}</div>
+            <div class="cart-item-subtotal">¥${Number(subtotal || 0).toFixed(2)}</div>
             <button type="button" class="cart-item-remove" title="删除"
                     onclick="removeCartItem('${safeIdAttr}')">
                 <i class="fas fa-trash-alt"></i>

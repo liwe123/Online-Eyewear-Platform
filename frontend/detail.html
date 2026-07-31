@@ -16,7 +16,7 @@
                 <i class="fas fa-glasses me-2"></i>
                 丹智慧眼
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -128,34 +128,65 @@
             }
 
             let currentGlasses = null;
-            titleEl.textContent = '加载中...';
 
-            apiRequest(`${API_BASE}/api/glasses/detail?glasses_id=${encodeURIComponent(glassesId)}`)
-                .then(result => {
-                    if (result.code !== 200) {
-                        throw new Error(result.msg || '获取详情失败');
-                    }
-                    const data = result.data || {};
-                    currentGlasses = data;
+            // 加载眼镜详情（可被“重试”按钮再次调用）
+            function loadGlassesDetail() {
+                titleEl.textContent = '加载中...';
 
-                    const titleText = data.name
-                        ? ((data.brand ? data.brand + ' · ' : '') + data.name)
-                        : (data.frame_shape + ' 眼镜 (ID: ' + data.glasses_id + ')');
-                    titleEl.textContent = titleText;
-                    imgEl.src = resolveImageUrl(data.image_url);
-                    setImgFallback(imgEl);
-                    frameShapeEl.textContent = data.frame_shape || '-';
-                    frameSizeEl.textContent = data.frame_size || '-';
-                    frameMaterialEl.textContent = data.frame_material || '-';
-                    lensDegreeEl.textContent = `${data.lens_degree_min ?? '-'}至${data.lens_degree_max ?? '-'}度`;
-                    lensRefractiveIndexEl.textContent = data.lens_refractive_index ?? '-';
-                    priceEl.textContent = `¥${Number(data.price || 0).toFixed(2)}`;
-                })
-                .catch(error => {
-                    console.error('获取详情失败：', error);
-                    showToast('获取详情失败：' + error.message, 'danger');
-                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
-                });
+                apiRequest(`${API_BASE}/api/glasses/detail?glasses_id=${encodeURIComponent(glassesId)}`)
+                    .then(result => {
+                        // 仅 404（商品不存在）跳回首页；网络/其他错误走下方 catch 显示重试
+                        if (result.code === 404) {
+                            showToast('未找到该眼镜，正在返回首页', 'warning');
+                            setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                            return;
+                        }
+                        if (result.code !== 200) {
+                            throw new Error(result.msg || '获取详情失败');
+                        }
+                        const data = result.data || {};
+                        currentGlasses = data;
+
+                        const titleText = data.name
+                            ? ((data.brand ? data.brand + ' · ' : '') + data.name)
+                            : (data.frame_shape + ' 眼镜 (ID: ' + data.glasses_id + ')');
+                        titleEl.textContent = titleText;
+                        imgEl.src = resolveImageUrl(data.image_url);
+                        setImgFallback(imgEl);
+                        frameShapeEl.textContent = data.frame_shape || '-';
+                        frameSizeEl.textContent = data.frame_size || '-';
+                        frameMaterialEl.textContent = data.frame_material || '-';
+                        lensDegreeEl.textContent = `${data.lens_degree_min ?? '-'}至${data.lens_degree_max ?? '-'}度`;
+                        lensRefractiveIndexEl.textContent = data.lens_refractive_index ?? '-';
+                        priceEl.textContent = `¥${Number(data.price || 0).toFixed(2)}`;
+                    })
+                    .catch(error => {
+                        console.error('获取详情失败：', error);
+                        titleEl.textContent = '加载失败';
+                        showToast('获取详情失败：' + (error.message || '网络错误') + '，请检查网络后重试', 'danger');
+
+                        // 网络/其他错误：显示错误信息与重试按钮，而不是跳回首页
+                        const oldBox = document.getElementById('detail-error-box');
+                        if (oldBox) oldBox.remove();
+                        const box = document.createElement('div');
+                        box.id = 'detail-error-box';
+                        box.className = 'text-danger mt-3';
+                        box.textContent = '商品信息加载失败，请检查网络后重试。';
+                        const retryBtn = document.createElement('button');
+                        retryBtn.type = 'button';
+                        retryBtn.className = 'btn btn-outline-primary btn-sm mt-2';
+                        retryBtn.textContent = '重试';
+                        retryBtn.addEventListener('click', function () {
+                            const eb = document.getElementById('detail-error-box');
+                            if (eb) eb.remove();
+                            loadGlassesDetail();
+                        });
+                        box.appendChild(retryBtn);
+                        addCartBtn.insertAdjacentElement('afterend', box);
+                    });
+            }
+
+            loadGlassesDetail();
 
             addCartBtn.addEventListener('click', function () {
                 if (!currentGlasses) {
@@ -163,6 +194,14 @@
                     return;
                 }
                 addToCart(currentGlasses);
+                // 短暂给出“已添加”反馈
+                const originalHtml = addCartBtn.innerHTML;
+                addCartBtn.innerHTML = '<i class="fas fa-check me-1"></i> 已添加';
+                addCartBtn.disabled = true;
+                setTimeout(function () {
+                    addCartBtn.disabled = false;
+                    addCartBtn.innerHTML = originalHtml;
+                }, 1200);
             });
         });
     </script>

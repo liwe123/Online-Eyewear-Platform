@@ -16,10 +16,12 @@ e) 价格不参与打分（不设权重）。
 """
 from __future__ import annotations
 
+import heapq
 import re
 from typing import Any, Optional
 
 import pandas as pd
+from loguru import logger
 
 # ---------------------------------------------------------------------------
 # 模块级常量（调参入口）
@@ -191,10 +193,20 @@ def recommend(
     face_key = _normalize_face_shape(face_shape)
     face_name = _display_face_shape(face_shape)
 
-    df = glasses_df.copy()
-    df["frame_shape"] = df["frame_shape"].astype(str).str.strip()
+    # 防御：把 top_n 限制在合理范围，避免超大值拖慢排序/放大响应
+    top_n = max(1, min(int(top_n), 100))
+
+    # 防御性最小清洗：服务启动时 _load_glasses_csv 已预清洗（数值列转数值、
+    # frame_shape 去空白），此处仅在传入数据尚未就绪时补做，避免每请求整表 copy。
+    df = glasses_df
+    if "frame_shape" in df.columns:
+        if pd.api.types.is_object_dtype(df["frame_shape"]):
+            df = df.assign(frame_shape=df["frame_shape"].str.strip())
+        else:
+            df = df.assign(frame_shape=df["frame_shape"].astype(str).str.strip())
     for col in ("lens_degree_min", "lens_degree_max", "lens_refractive_index", "price"):
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        if col in df.columns and not pd.api.types.is_numeric_dtype(df[col]):
+            df = df.assign(**{col: pd.to_numeric(df[col], errors="coerce")})
     df = df.drop_duplicates(subset="glasses_id")
 
     # b) 度数适配（兼容用户输入习惯：正数表示"度数"如300，负数/0 表示屈光度；0 或 None 视为不近视，不硬过滤）
@@ -208,6 +220,12 @@ def recommend(
         rules.append(f"收到正数度数 {myopia_degree}，按屈光度 {normalized_degree:.2f}D 进行适配")
     else:
         normalized_degree = float(myopia_degree)
+
+    # 单位容错提醒：|myopia_degree| 异常大时大概率是单位填错（正数度数与负值屈光度混用）
+    if myopia_degree is not None and not pd.isna(myopia_degree) and abs(myopia_degree) > 2000:
+        logger.warning(
+            f"近视度数 {myopia_degree} 绝对值超过 2000，可能存在单位错误（正数为度数、负数为屈光度）"
+        )
 
     if normalized_degree is not None:
         degree_mask = (df["lens_degree_min"] <= normalized_degree) & (normalized_degree <= df["lens_degree_max"])
@@ -230,8 +248,9 @@ def recommend(
     face_known = face_key in FACE_FRAME_MAP
     preferred_shapes = FACE_FRAME_MAP.get(face_key)
     if preferred_shapes is None:
+        # 未识别脸型：用永不可能命中的哨兵值，避免「空列表=百搭」导致全量 +40 分
         rules.append(f"未识别的脸型「{face_shape}」，脸型维度不打分，按其余规则推荐")
-        preferred_shapes = []
+        preferred_shapes = ["__UNKNOWN__"]
     elif len(preferred_shapes) == 0:
         rules.append(_FACE_RULE_REASON.get(face_key, f"{face_shape}百搭"))
     else:
@@ -271,7 +290,7 @@ def recommend(
         item_reasons: list[str] = []
         shape = str(getattr(row, "frame_shape", "")).strip()
 
-        # a) 脸型加分（preferred_shapes 为空表示百搭或未识别，均命中）
+        # a) 脸型加分（preferred_shapes 为空表示百搭均命中；未识别脸型为哨兵值，永不命中）
         if len(preferred_shapes) == 0 or shape in preferred_shapes:
             score += SCORE_FACE_MATCH
             if face_known:
@@ -300,9 +319,15 @@ def recommend(
         item["reason"] = "；".join(item_reasons) if item_reasons else "基础推荐"
         scored.append(item)
 
-    # e) 按分数降序（价格不设权重；同分保持库存原有顺序）
-    scored.sort(key=lambda x: -x["score"])
-    selected = scored[:top_n]
+    # e) 按分数取 Top-N（同分保持库存原有顺序；heapq.nlargest 比全量排序更省）
+    selected = [
+        item
+        for _, item in heapq.nlargest(
+            top_n,
+            enumerate(scored),
+            key=lambda x: (x[1]["score"], -x[0]),
+        )
+    ]
 
     # 脸型限制放宽说明：所选中有未命中脸型规则者
     relaxed_count = sum(1 for it in selected if not it["_face_matched"])

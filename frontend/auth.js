@@ -1,8 +1,6 @@
 // 丹智慧眼 - 登录/注册模块
-// 依赖 common.js（API_BASE / apiRequest / showToast）
+// 依赖 common.js（API_BASE / apiRequest / showToast / AUTH_KEY）
 // 页面需提供 id="auth-btn" 的导航按钮
-
-const AUTH_KEY = 'dz_auth';
 
 // 读取登录状态
 function getAuth() {
@@ -13,11 +11,11 @@ function getAuth() {
     }
 }
 
-// 退出登录
-function logout() {
+// 退出登录（message 可选，默认“已退出登录”）
+function logout(message) {
     localStorage.removeItem(AUTH_KEY);
     updateAuthButton();
-    showToast('已退出登录', 'info');
+    showToast(message || '已退出登录', 'info');
 }
 
 // 根据登录状态刷新导航按钮文案
@@ -153,6 +151,10 @@ async function handleRegister(e) {
 
     if (!username || !password) {
         showToast('请输入用户名和密码', 'warning');
+        return;
+    }
+    if (password.length < 6) {
+        showToast('密码长度不能少于6位', 'warning');
         return;
     }
     if (password !== password2) {

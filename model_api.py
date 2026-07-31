@@ -13,6 +13,7 @@ API 契约（与 Flask 后端约定保持不变）：
 """
 from __future__ import annotations
 
+import math
 import os
 import sys
 import time
@@ -25,10 +26,10 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, File, Query, Request, UploadFile
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from face_geometry import classify_face_shape, is_mediapipe_available
+from face_geometry import classify_face_shape, face_detector_status
 from recommend_rules import RECOMMEND_FIELDS, recommend
 
 # ---------------------------------------------------------------------------
@@ -79,6 +80,21 @@ logger.add(
 DEFAULT_TOP_K: int = 3
 MAX_IMAGE_SIZE: int = 10 * 1024 * 1024  # 10MB
 
+# 眼镜 CSV 必需列（recommend_rules 打分与响应契约均依赖）
+REQUIRED_CSV_COLUMNS: tuple[str, ...] = (
+    "glasses_id",
+    "name",
+    "brand",
+    "frame_shape",
+    "frame_size",
+    "frame_material",
+    "lens_degree_min",
+    "lens_degree_max",
+    "lens_refractive_index",
+    "price",
+    "image_url",
+)
+
 # 资源字典：眼镜数据与分组索引
 _resources: dict[str, Any] = {}
 
@@ -86,9 +102,31 @@ _resources: dict[str, Any] = {}
 class EyeData(BaseModel):
     """用户眼部参数（近视度数为负值，如 -3.5 表示 350 度）。"""
 
-    pupil_distance: float
-    corneal_curvature: float
-    myopia_degree: float
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    pupil_distance: float = Field(gt=30, lt=100, description="瞳距（毫米），生理范围约 30~100")
+    corneal_curvature: float = Field(gt=30, lt=55, description="角膜曲率（毫米），生理范围约 30~55")
+    myopia_degree: float = Field(
+        description="近视度数：负数为屈光度（如 -3.5），正数为「度数」（如 350 表示 350 度）"
+    )
+
+    @field_validator("pupil_distance", "corneal_curvature", "myopia_degree")
+    @classmethod
+    def _reject_non_finite(cls, value: float) -> float:
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            raise ValueError("字段值不能为 NaN 或无穷大")
+        return value
+
+    @field_validator("myopia_degree")
+    @classmethod
+    def _validate_myopia_degree(cls, value: float) -> float:
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            raise ValueError("近视度数不能为 NaN 或无穷大")
+        if not (-20000 < value < 2000):
+            raise ValueError(
+                "近视度数异常：允许范围 -20000~2000（正数为「度数」如 350，负数为屈光度如 -3.5），请检查单位"
+            )
+        return value
 
 
 def _load_glasses_csv(csv_path: str) -> pd.DataFrame:
@@ -121,6 +159,11 @@ def _load_glasses_csv(csv_path: str) -> pd.DataFrame:
         except Exception as exc:
             raise ValueError(f"无法读取CSV文件: {csv_path}") from exc
 
+    # 列校验：缺失必需列时给出明确错误，避免后续 KeyError 掩盖真实问题
+    missing = [c for c in REQUIRED_CSV_COLUMNS if c not in glasses_df.columns]
+    if missing:
+        raise ValueError(f"眼镜CSV缺少必需列: {missing}，文件: {csv_path}")
+
     glasses_df["frame_shape"] = glasses_df["frame_shape"].astype(str).str.strip()
     for col in ("lens_degree_min", "lens_degree_max", "lens_refractive_index", "price"):
         glasses_df[col] = pd.to_numeric(glasses_df[col], errors="coerce")
@@ -147,7 +190,15 @@ def _load_resources() -> None:
     # 预建按 frame_shape 分组的索引，便于按形状快速筛选
     glasses_by_shape = {shape: group for shape, group in glasses_df.groupby("frame_shape")}
     logger.info(f"眼镜数据加载完成: {len(glasses_df)} 款，{len(glasses_by_shape)} 种形状")
-    logger.info(f"脸型识别引擎: mediapipe {'可用' if is_mediapipe_available() else '不可用（将使用检测框兜底）'}")
+    # 预热全部检测引擎（含 YuNet 首次下载），避免首个 /health 请求触发阻塞式联网下载
+    det_status = face_detector_status()
+    logger.info(
+        "检测引擎: mediapipe={} yunet={} mtcnn={}".format(
+            "可用" if det_status["mediapipe"] else "不可用",
+            "可用" if det_status["yunet"] else "不可用",
+            "可用" if det_status["mtcnn"] else "不可用",
+        )
+    )
 
     # 将可复用资源集中存放，后续请求直接读取内存对象即可。
     _resources = {
@@ -191,11 +242,26 @@ async def add_process_time_header(request: Request, call_next):
 # ---------- 健康检查 ----------
 @app.get("/health")
 async def health_check() -> dict:
-    """返回服务状态、mediapipe 可用性与已加载眼镜数量。"""
+    """返回服务状态、检测引擎可用性与已加载眼镜数量。
+
+    status 为 "ok" 表示资源正常加载；资源未加载时为 "degraded"（区别于
+    正常加载但库存为 0 的情况），并附带 reason 说明。
+    """
+    detectors = face_detector_status()
+    glasses_df = _resources.get("glasses_df")
+    if glasses_df is None:
+        return {
+            "status": "degraded",
+            "reason": "resources not loaded",
+            "detectors": detectors,
+            "mediapipe": detectors["mediapipe"],
+            "glasses_count": 0,
+        }
     return {
         "status": "ok",
-        "mediapipe": is_mediapipe_available(),
-        "glasses_count": len(_resources.get("glasses_df", [])),
+        "detectors": detectors,
+        "mediapipe": detectors["mediapipe"],
+        "glasses_count": len(glasses_df),
     }
 
 
@@ -248,8 +314,15 @@ async def predict_face_shape(file: UploadFile = File(...)) -> dict:
             "analysis": result.get("analysis", []),
             "verdict": result.get("verdict", ""),
         }
+    except KeyboardInterrupt:
+        raise
+    except SystemExit:
+        raise
     except Exception:
-        logger.exception("脸型识别失败")
+        contents_len = len(contents) if "contents" in locals() else "?"
+        logger.exception(
+            f"脸型识别失败: endpoint=/predict_face_shape, file={file.filename}, size={contents_len}"
+        )
         return {"code": 500, "msg": "识别失败，请稍后重试"}
 
 
@@ -283,8 +356,15 @@ async def get_recommendation(eye_data: EyeData, face_shape: str = Query(...)) ->
             recommendation.append(rec)
         logger.info(f"推荐完成: 脸型={face_shape}, 结果数={len(recommendation)}")
         return {"code": 200, "recommendation": recommendation, "msg": "推荐成功", "rules": rules}
+    except KeyboardInterrupt:
+        raise
+    except SystemExit:
+        raise
     except Exception:
-        logger.exception("推荐失败")
+        logger.exception(
+            f"推荐失败: endpoint=/get_recommendation, face_shape={face_shape}, "
+            f"pupil_distance={eye_data.pupil_distance}"
+        )
         return {"code": 500, "msg": "推荐失败，请稍后重试"}
 
 

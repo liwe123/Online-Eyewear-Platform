@@ -5,9 +5,12 @@
 （不进入 with 上下文即不触发 lifespan），并手动向 model_api._resources
 注入测试用眼镜数据。
 """
+import math
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 import model_api
 from conftest import make_png_bytes
@@ -58,6 +61,21 @@ class TestHealth:
         assert body["status"] == "ok"
         assert isinstance(body["mediapipe"], bool)
         assert body["glasses_count"] == len(ROWS)
+
+    def test_health_degraded_when_resources_missing(self, model_client):
+        """资源未加载时 /health 应返回 status=degraded（区别于库存为 0 的 ok）。"""
+        saved = dict(model_api._resources)
+        try:
+            model_api._resources.clear()
+            resp = model_client.get("/health")
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["status"] == "degraded"
+            assert body["glasses_count"] == 0
+            assert "reason" in body
+        finally:
+            model_api._resources.clear()
+            model_api._resources.update(saved)
 
 
 class TestGetRecommendation:
@@ -113,6 +131,45 @@ class TestGetRecommendation:
         assert any("放宽" in r for r in body["rules"])
 
 
+class TestEyeDataValidation:
+    """EyeData 生理范围 / 有限性校验。"""
+
+    @pytest.mark.parametrize("field,value", [
+        ("pupil_distance", 10.0),        # 瞳距过小
+        ("pupil_distance", 200.0),       # 瞳距过大
+        ("corneal_curvature", 20.0),     # 角膜曲率过小
+        ("corneal_curvature", 200.0),    # 角膜曲率过大
+        ("myopia_degree", -99999.0),     # 近视度数过小（屈光度）
+        ("myopia_degree", 5000.0),       # 近视度数过大（正数度数）
+    ], ids=["pd_too_small", "pd_too_large", "cc_too_small", "cc_too_large",
+            "myopia_absurd_low", "myopia_absurd_high"])
+    def test_out_of_range_eye_data_422(self, model_client, field, value):
+        bad = dict(VALID_EYE_DATA, **{field: value})
+        resp = model_client.post(
+            "/get_recommendation", json=bad, params={"face_shape": "方形"},
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")],
+                             ids=["nan", "pos_inf", "neg_inf"])
+    def test_non_finite_eye_data_rejected(self, value):
+        """NaN / 无穷大在模型层被拒绝。
+
+        注：此处直接校验 pydantic 模型而非走 HTTP——422 错误响应本身会携带
+        input 值，starlette 的 JSON 序列化器（allow_nan=False）无法渲染
+        NaN 字段，导致 TestClient 抛出 ValueError。模型层的 ValidationError
+        正是 HTTP 422 的根因。
+        """
+        with pytest.raises(ValidationError):
+            model_api.EyeData(
+                pupil_distance=value, corneal_curvature=43.0, myopia_degree=-3.5,
+            )
+        with pytest.raises(ValidationError):
+            model_api.EyeData(
+                pupil_distance=62.0, corneal_curvature=43.0, myopia_degree=value,
+            )
+
+
 class TestPredictFaceShape:
     def test_predict_with_valid_image(self, model_client):
         png = make_png_bytes()
@@ -140,3 +197,15 @@ class TestPredictFaceShape:
     def test_predict_missing_file_422(self, model_client):
         resp = model_client.post("/predict_face_shape")
         assert resp.status_code == 422
+
+    def test_predict_image_too_large_400(self, model_client):
+        """图片字节超过 MAX_IMAGE_SIZE(10MB) → 业务错误码 400。"""
+        big = b"\0" * (model_api.MAX_IMAGE_SIZE + 1)
+        resp = model_client.post(
+            "/predict_face_shape",
+            files={"file": ("big.png", big, "image/png")},
+        )
+        assert resp.status_code == 200  # 业务错误码在 body，HTTP 仍为 200
+        body = resp.json()
+        assert body["code"] == 400
+        assert "10MB" in body["msg"]

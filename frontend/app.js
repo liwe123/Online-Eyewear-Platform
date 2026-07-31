@@ -4,6 +4,10 @@
 
 // ==================== 页面初始化 ====================
 document.addEventListener('DOMContentLoaded', function () {
+    // 页脚年份动态更新
+    const copyrightYear = document.getElementById('copyright-year');
+    if (copyrightYear) copyrightYear.textContent = new Date().getFullYear();
+
     loadRecommendedGlasses([]);
     loadShopGlasses();
 
@@ -11,6 +15,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const fileInput = document.getElementById('face-upload');
     if (uploadArea && fileInput) {
         uploadArea.addEventListener('click', () => fileInput.click());
+
+        // 键盘可访问性：Enter / 空格 触发文件选择
+        uploadArea.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
 
         // 文件选择预览
         fileInput.addEventListener('change', function (e) {
@@ -95,9 +107,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     const recs = payload.recommendation || [];
                     renderFaceReport(payload);
                     if (payload.landmarks && payload.landmarks.length) drawLandmarks(payload.landmarks);
-                    matchProgress.style.width = recs.length === 0 ? '60%' : '92%';
+                    matchProgress.style.width = recs.length === 0 ? '0%' : '92%';
                     loadRecommendedGlasses(recs);
-                    if (recs.length === 0) showToast('未找到适配您度数范围的眼镜', 'warning');
+                    if (recs.length === 0) showToast('未找到合适的镜框', 'warning');
                 } else {
                     showToast('错误：' + (result.msg || '分析失败'), 'danger');
                 }
@@ -120,6 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 showToast('暂无推荐眼镜，请先进行AI分析', 'info');
                 return;
             }
+            window._currentIndex = window._currentIndex || 0;
             window._currentIndex = (window._currentIndex + 1) % recs.length;
             const glass = recs[window._currentIndex];
             showToast('已切换至：' + (glass.name || glass.frame_shape + '眼镜'), 'success');
@@ -164,11 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ==================== AI 推荐列表 ====================
-function escapeHtmlSafe(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-}
+// HTML 转义统一使用 common.js 提供的 escapeHtml
 
 function renderFaceReport(data) {
     const report = document.getElementById('analysis-report');
@@ -181,22 +190,22 @@ function renderFaceReport(data) {
     let html = '';
     html += '<div class="report-head">';
     html += '  <div class="feature-points"><span class="fp-num">' + count + '</span><span class="fp-label">个面部特征点已分析</span></div>';
-    html += '  <div class="face-shape-badge">脸型判定：<b>' + escapeHtmlSafe(shape) + '</b></div>';
+    html += '  <div class="face-shape-badge">脸型判定：<b>' + escapeHtml(shape) + '</b></div>';
     html += '</div>';
 
     const summary = 'AI 已基于 ' + count + ' 个面部特征点完成几何测量，检测到您的脸型为「' + shape + '」';
-    html += '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i>' + escapeHtmlSafe(summary) + '</div>';
+    html += '<div class="alert alert-info mb-3"><i class="fas fa-info-circle me-2"></i>' + escapeHtml(summary) + '</div>';
 
     if (verdict) {
-        html += '<div class="verdict"><b>判定依据：</b>' + escapeHtmlSafe(verdict) + '</div>';
+        html += '<div class="verdict"><b>判定依据：</b>' + escapeHtml(verdict) + '</div>';
     }
     if (analysis.length) {
         html += '<div class="metric-grid">';
         analysis.forEach(function (m) {
             html += '<div class="metric-card">';
-            html += '  <div class="metric-label">' + escapeHtmlSafe(m.label) + '</div>';
-            html += '  <div class="metric-value">' + escapeHtmlSafe(m.value) + '</div>';
-            html += '  <div class="metric-desc">' + escapeHtmlSafe(m.desc) + '</div>';
+            html += '  <div class="metric-label">' + escapeHtml(m.label) + '</div>';
+            html += '  <div class="metric-value">' + escapeHtml(m.value) + '</div>';
+            html += '  <div class="metric-desc">' + escapeHtml(m.desc) + '</div>';
             html += '</div>';
         });
         html += '</div>';
@@ -284,7 +293,7 @@ function loadRecommendedGlasses(recommendations) {
 
         const price = document.createElement('span');
         price.className = 'h5 text-primary mb-0';
-        price.textContent = '¥' + glass.price;
+        price.textContent = '¥' + Number(glass.price || 0).toFixed(2);
         priceRow.appendChild(price);
 
         const btnGroup = document.createElement('div');
@@ -321,10 +330,20 @@ const shopState = {
     pageSize: 12
 };
 
+// 商城请求竞态控制：取消上一次请求 + 令牌防止过期响应覆盖新结果
+let shopAbortController = null;
+let shopRequestToken = 0;
+
 /**
  * 拉取商城列表并渲染
  */
 async function loadShopGlasses() {
+    const myToken = ++shopRequestToken;
+    // 取消上一次仍在途的请求，避免并发竞态
+    if (shopAbortController) shopAbortController.abort();
+    shopAbortController = new AbortController();
+    const signal = shopAbortController.signal;
+
     const container = document.getElementById('shop-glasses');
     const frameShape = document.getElementById('shop-filter-shape').value;
     const keyword = document.getElementById('shop-filter-keyword').value.trim();
@@ -339,7 +358,8 @@ async function loadShopGlasses() {
     container.innerHTML = '<p class="text-center col-12 text-muted py-4">加载中...</p>';
 
     try {
-        const result = await apiRequest(API_BASE + '/api/glasses/list?' + params.toString());
+        const result = await apiRequest(API_BASE + '/api/glasses/list?' + params.toString(), { signal });
+        if (myToken !== shopRequestToken) return; // 已有更新的请求，丢弃过期响应
         if (result.code !== 200) {
             container.textContent = '';
             const errMsg = document.createElement('p');
@@ -352,6 +372,7 @@ async function loadShopGlasses() {
         renderShopGlasses(result.data.items || []);
         renderShopPagination(result.data.total || 0);
     } catch (error) {
+        if (myToken !== shopRequestToken) return; // 请求已被新请求取代，静默丢弃
         console.error('商城列表加载失败：', error);
         container.innerHTML = '<p class="text-center col-12 text-muted py-4">商城服务暂不可用，请稍后重试</p>';
         renderShopPagination(0);
@@ -415,7 +436,7 @@ function renderShopGlasses(items) {
 
         const price = document.createElement('span');
         price.className = 'h5 text-primary mb-0';
-        price.textContent = '¥' + glass.price;
+        price.textContent = '¥' + Number(glass.price || 0).toFixed(2);
         priceRow.appendChild(price);
 
         const btnGroup = document.createElement('div');

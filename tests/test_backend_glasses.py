@@ -46,6 +46,27 @@ class TestGlassesListPagination:
         assert resp.status_code == 400
         assert resp.get_json()["code"] == 400
 
+    def test_page_zero_clamped_to_one(self, client):
+        data = client.get("/api/glasses/list?page=0").get_json()["data"]
+        assert data["page"] == 1
+
+    def test_negative_page_clamped_to_one(self, client):
+        data = client.get("/api/glasses/list?page=-1").get_json()["data"]
+        assert data["page"] == 1
+
+    def test_page_size_zero_clamped_to_one(self, client):
+        data = client.get("/api/glasses/list?page_size=0").get_json()["data"]
+        assert data["page_size"] == 1
+
+    def test_page_size_just_above_max_capped(self, client):
+        data = client.get("/api/glasses/list?page_size=51").get_json()["data"]
+        assert data["page_size"] == 50
+
+    def test_page_beyond_data_empty(self, client):
+        data = client.get("/api/glasses/list?page=999&page_size=50").get_json()["data"]
+        assert data["total"] == TOTAL
+        assert data["items"] == []
+
 
 class TestGlassesListFilter:
     """GET /api/glasses/list 筛选。"""
@@ -79,6 +100,13 @@ class TestGlassesListFilter:
         assert data["total"] > 0
         assert all(300 <= it["price"] <= 500 for it in data["items"])
 
+    def test_invalid_price_filter_400(self, client):
+        resp = client.get("/api/glasses/list?min_price=abc")
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert "必须为数字" in body["msg"]
+
     def test_combined_filters(self, client):
         data = client.get(
             "/api/glasses/list?frame_shape=圆形&material=金属&page_size=50"
@@ -105,6 +133,13 @@ class TestGlassesDetail:
         resp = client.get("/api/glasses/detail?glasses_id=NOPE999")
         assert resp.status_code == 404
         assert resp.get_json()["code"] == 404
+
+    def test_detail_missing_glasses_id_400(self, client):
+        resp = client.get("/api/glasses/detail")
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert "缺少 glasses_id 参数" in body["msg"]
 
 
 class TestStaticGlassesImage:

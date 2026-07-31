@@ -2,6 +2,7 @@
 """后端管理接口测试：权限控制、CRUD、CSV 导入。"""
 import io
 
+from admin import MAX_CSV_SIZE
 from models import Glasses
 
 # 与 backend/admin.py 中 CSV_REQUIRED_COLUMNS 一致的列头
@@ -104,6 +105,15 @@ class TestAdminCrud:
         assert resp.status_code == 400
         assert "非法" in resp.get_json()["msg"]
 
+    def test_update_null_string_field_not_written(self, client, admin_headers):
+        """null 字符串字段应被跳过，不得写入 str(None) 的 "None" 垃圾。"""
+        resp = client.put("/api/admin/glasses/T001", json={"frame_shape": None},
+                          headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        assert data["frame_shape"] == "圆形"  # T001 原始值保持不变
+        assert data["frame_shape"] != "None"
+
     def test_delete_nonexistent_404(self, client, admin_headers):
         resp = client.delete("/api/admin/glasses/GHOST99", headers=admin_headers)
         assert resp.status_code == 404
@@ -186,3 +196,44 @@ class TestAdminCsvImport:
         )
         assert resp.status_code == 200
         assert resp.get_json()["data"]["imported"] == 1
+
+    def test_import_reordered_columns_success(self, client, admin_headers):
+        """列头顺序不同也应导入成功（按字段名而非列位置匹配）。"""
+        row = {
+            "glasses_id": "ORD1", "frame_shape": "圆形", "frame_size": "50-20-140",
+            "frame_material": "TR90", "lens_degree_min": -6, "lens_degree_max": 0,
+            "lens_refractive_index": 1.60, "price": 399,
+            "image_url": "/static/glasses/ORD1.svg",
+        }
+        cols = CSV_HEADER.split(",")
+        reordered = [cols[i] for i in (8, 4, 5, 6, 7, 0, 1, 2, 3)]  # 打乱顺序
+        csv_text = ",".join(reordered) + "\n" + \
+            ",".join(str(row[c]) for c in reordered) + "\n"
+        resp = client.post(
+            "/api/admin/glasses/import",
+            data={"file": _csv_upload(csv_text)},
+            content_type="multipart/form-data",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["imported"] == 1
+        # 按字段名正确落库
+        detail = client.get("/api/glasses/detail?glasses_id=ORD1")
+        assert detail.status_code == 200
+        data = detail.get_json()["data"]
+        assert data["frame_shape"] == "圆形"
+        assert data["price"] == 399.0
+
+    def test_import_file_too_large_400(self, client, admin_headers):
+        """CSV 文件超过 MAX_CSV_SIZE(5MB) → 400「CSV 文件过大」。"""
+        big = io.BytesIO(b"a" * (MAX_CSV_SIZE + 1))
+        resp = client.post(
+            "/api/admin/glasses/import",
+            data={"file": (big, "big.csv", "text/csv")},
+            content_type="multipart/form-data",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["code"] == 400
+        assert "过大" in body["msg"]

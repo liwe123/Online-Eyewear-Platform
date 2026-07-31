@@ -14,6 +14,50 @@ RUN pip install -r backend/requirements.txt psycopg2-binary==2.9.9
 COPY backend/ ./backend/
 COPY data/ ./data/
 
+# 非 root 运行：创建 app 用户（固定 uid/gid 1000）并移交 /app 权限
+RUN useradd -m -u 1000 -s /bin/bash app && chown -R app:app /app
+
+# 入口脚本：compose 以 rw 挂载 /app/data（挂载后归 root 所有，构建期 chown 无效），
+# 因此先以 root 把 /app/data 与 /app/logs 递归 chown 给 app，再降权到 app 执行 CMD。
+# 若直接以非 root 启动（如 compose 指定 user:），则跳过 chown，仅 exec。
+RUN cat > /usr/local/bin/docker-entrypoint.py <<'PYEOF'
+import os
+import sys
+
+APP_UID = 1000
+APP_GID = 1000
+WRITABLE_DIRS = ("/app/data", "/app/logs")
+
+
+def chown_r(path):
+    try:
+        os.chown(path, APP_UID, APP_GID)
+    except FileNotFoundError:
+        return
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            try:
+                os.chown(os.path.join(root, d), APP_UID, APP_GID)
+            except OSError:
+                pass
+        for f in files:
+            try:
+                os.chown(os.path.join(root, f), APP_UID, APP_GID)
+            except OSError:
+                pass
+
+
+if os.geteuid() == 0:
+    for p in WRITABLE_DIRS:
+        chown_r(p)
+    os.setgroups([])
+    os.setgid(APP_GID)
+    os.setuid(APP_UID)
+
+os.execvp(sys.argv[1], sys.argv[1:])
+PYEOF
+
 EXPOSE 5000
 
+ENTRYPOINT ["python", "/usr/local/bin/docker-entrypoint.py"]
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "backend.backend_main:app"]

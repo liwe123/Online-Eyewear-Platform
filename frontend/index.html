@@ -18,7 +18,7 @@
                 <i class="fas fa-glasses me-2"></i>
                 丹智慧眼
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -149,7 +149,7 @@
                 <div class="col-lg-6">
                     <div class="try-on-container h-100">
                         <h4 class="mb-4">上传照片进行智能分析</h4>
-                        <div class="face-upload-area mb-4" id="upload-area">
+                        <div class="face-upload-area mb-4" id="upload-area" tabindex="0" role="button" aria-label="上传照片进行智能分析">
                             <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                             <p class="mb-2">点击或拖拽上传正脸照片</p>
                             <p class="text-muted small">支持 JPG、PNG 格式，文件大小不超过5MB</p>
@@ -377,9 +377,9 @@
                     </h4>
                     <p class="mb-3">基于AI与大数据的丹阳眼镜产业智能化识别与精准营销平台。</p>
                     <div class="d-flex gap-3">
-                        <a href="#" class="text-light"><i class="fab fa-weixin fa-lg"></i></a>
-                        <a href="#" class="text-light"><i class="fab fa-weibo fa-lg"></i></a>
-                        <a href="#" class="text-light"><i class="fab fa-qq fa-lg"></i></a>
+                        <a href="javascript:void(0)" class="text-light" title="微信"><i class="fab fa-weixin fa-lg"></i></a>
+                        <a href="javascript:void(0)" class="text-light" title="微博"><i class="fab fa-weibo fa-lg"></i></a>
+                        <a href="javascript:void(0)" class="text-light" title="QQ"><i class="fab fa-qq fa-lg"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-2 col-6 mb-4 mb-lg-0">
@@ -411,13 +411,13 @@
             <hr class="my-5">
             <div class="row align-items-center">
                 <div class="col-md-6 text-center text-md-start">
-                    <p class="mb-0">&copy; 2025 丹智慧眼. 南京师范大学中北学院大创项目</p>
+                    <p class="mb-0">&copy; <span id="copyright-year">2025</span> 丹智慧眼. 南京师范大学中北学院大创项目</p>
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <div class="footer-links d-inline-flex gap-3">
                         <a href="#" class="mb-0" data-bs-toggle="modal" data-bs-target="#privacyModal">隐私政策</a>
                         <a href="#" class="mb-0" data-bs-toggle="modal" data-bs-target="#termsModal">使用条款</a>
-                        <a href="#" class="mb-0">网站地图</a>
+                        <a href="javascript:void(0)" class="mb-0">网站地图</a>
                     </div>
                 </div>
             </div>

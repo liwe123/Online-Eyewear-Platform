@@ -7,6 +7,8 @@ import io
 from typing import Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request
+from loguru import logger
+from sqlalchemy.exc import SQLAlchemyError
 
 try:  # 支持包导入（gunicorn）与脚本直接运行两种方式
     from .auth import admin_required
@@ -16,6 +18,10 @@ except ImportError:  # pragma: no cover
     from models import Glasses, db
 
 admin_bp: Blueprint = Blueprint("admin", __name__, url_prefix="/api/admin")
+
+# CSV 导入的大小与行数上限，防止一次性读取过大文件耗尽内存
+MAX_CSV_SIZE: int = 5 * 1024 * 1024  # 5MB
+MAX_CSV_ROWS: int = 5000
 
 # CSV 导入要求的列头（与 data/glasses_data.csv 一致）
 CSV_REQUIRED_COLUMNS = [
@@ -45,8 +51,12 @@ def _apply_fields(glass: Glasses, data: Dict[str, Any]) -> Optional[str]:
     for field, caster in _FIELD_CASTERS.items():
         if field not in data:
             continue
+        value = data[field]
+        if value is None:
+            # 跳过 null：避免 str(None) 写入 "None" 垃圾数据；数值字段也会在此避免误报
+            continue
         try:
-            setattr(glass, field, caster(data[field]))
+            setattr(glass, field, caster(value))
         except (ValueError, TypeError):
             return f"字段 {field} 取值非法"
     return None
@@ -57,13 +67,13 @@ def _apply_fields(glass: Glasses, data: Dict[str, Any]) -> Optional[str]:
 def create_glasses() -> Any:
     """创建眼镜（JSON 全字段），glasses_id 查重。"""
     data = request.get_json(silent=True) or {}
-    glasses_id = str(data.get("glasses_id", "")).strip()
+    glasses_id = (data.get("glasses_id") or "").strip()
     if not glasses_id:
         return jsonify({"code": 400, "msg": "缺少 glasses_id"}), 400
     if Glasses.query.filter_by(glasses_id=glasses_id).first() is not None:
         return jsonify({"code": 400, "msg": f"glasses_id {glasses_id} 已存在"}), 400
 
-    missing = [f for f in _FIELD_CASTERS if f not in data]
+    missing = [f for f in _FIELD_CASTERS if f not in data or data[f] is None]
     if missing:
         return jsonify({"code": 400, "msg": f"缺少必填字段: {', '.join(missing)}"}), 400
 
@@ -72,7 +82,12 @@ def create_glasses() -> Any:
     if error is not None:
         return jsonify({"code": 400, "msg": error}), 400
     db.session.add(glass)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.exception("创建眼镜接口提交失败")
+        return jsonify({"code": 500, "msg": "数据保存失败，请稍后重试"}), 500
     return jsonify({"code": 200, "msg": "创建成功", "data": glass.to_dict()})
 
 
@@ -87,7 +102,12 @@ def update_glasses(glasses_id: str) -> Any:
     error = _apply_fields(glass, data)
     if error is not None:
         return jsonify({"code": 400, "msg": error}), 400
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.exception("更新眼镜接口提交失败")
+        return jsonify({"code": 500, "msg": "数据保存失败，请稍后重试"}), 500
     return jsonify({"code": 200, "msg": "更新成功", "data": glass.to_dict()})
 
 
@@ -99,7 +119,12 @@ def delete_glasses(glasses_id: str) -> Any:
     if glass is None:
         return jsonify({"code": 404, "msg": "眼镜不存在"}), 404
     db.session.delete(glass)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.exception("删除眼镜接口提交失败")
+        return jsonify({"code": 500, "msg": "数据保存失败，请稍后重试"}), 500
     return jsonify({"code": 200, "msg": "删除成功"})
 
 
@@ -126,13 +151,18 @@ def import_glasses() -> Any:
     if not csv_file.filename:
         return jsonify({"code": 400, "msg": "未选择文件"}), 400
 
-    text = _decode_csv(csv_file.read())
+    raw = csv_file.read()
+    if len(raw) > MAX_CSV_SIZE:
+        return jsonify({"code": 400, "msg": "CSV 文件过大"}), 400
+
+    text = _decode_csv(raw)
     if text is None:
         return jsonify({"code": 400, "msg": "CSV 编码不支持（仅支持 UTF-8/GBK）"}), 400
 
     reader = csv.DictReader(io.StringIO(text))
-    if reader.fieldnames is None or [h.strip() for h in reader.fieldnames] != CSV_REQUIRED_COLUMNS:
-        return jsonify({"code": 400, "msg": f"CSV 列头须为: {','.join(CSV_REQUIRED_COLUMNS)}"}), 400
+    # 只要求必填列都存在，不再强制列头顺序
+    if reader.fieldnames is None or not (set(h.strip() for h in reader.fieldnames) >= set(CSV_REQUIRED_COLUMNS)):
+        return jsonify({"code": 400, "msg": f"CSV 列头须包含: {','.join(CSV_REQUIRED_COLUMNS)}"}), 400
 
     imported = 0
     try:
@@ -150,8 +180,12 @@ def import_glasses() -> Any:
                 db.session.rollback()
                 return jsonify({"code": 400, "msg": f"第{row_number}行：{error}"}), 400
             imported += 1
+            if imported > MAX_CSV_ROWS:
+                db.session.rollback()
+                return jsonify({"code": 400, "msg": f"CSV 行数超过上限（{MAX_CSV_ROWS}行）"}), 400
         db.session.commit()
-    except Exception:
+    except SQLAlchemyError:
         db.session.rollback()
-        raise
+        logger.exception("CSV 导入提交失败")
+        return jsonify({"code": 500, "msg": "数据保存失败，请稍后重试"}), 500
     return jsonify({"code": 200, "data": {"imported": imported}})
