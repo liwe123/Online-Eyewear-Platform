@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-2.3-green.svg)](https://flask.palletsprojects.com/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-teal.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/pytest-94%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-145%20passed-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 南京师范大学中北学院 · 大学生创新创业训练计划项目
@@ -14,20 +14,23 @@
 
 ## 项目简介
 
-丹阳作为“中国眼镜之都”，拥有完整的眼镜制造与零售产业链。本项目以“拍照识脸型、智能荐镜型”为核心思路，构建了一个面向眼镜选购场景的 AI 辅助决策平台，实现**照片上传 -> 脸型识别 -> 智能推荐 -> 商品选购**的业务闭环，服务于丹阳眼镜产业的线上选型与精准营销需求。
+丹阳作为“中国眼镜之都”，拥有完整的眼镜制造与零售产业链。本项目以“拍照识脸型、智能荐镜型”为核心思路，构建了一个面向眼镜选购场景的 AI 辅助决策平台，实现**照片上传 -> 脸型识别 -> 智能推荐 -> 照片试戴 -> 商品选购**的业务闭环，服务于丹阳眼镜产业的线上选型与精准营销需求。
 
 ### 当前版本说明
 
-本仓库已完成一次面向可维护性与稳定性的系统优化，重点覆盖：
+本仓库已先后完成**稳定性加固**、**脸型识别管线升级（一期）** 与 **虚拟试戴（二期）**，重点覆盖：
 - 后端接口的参数校验、错误处理与安全头增强
+- **脸型识别管线升级**：修复 MediaPipe 中文路径无法加载模型的问题（自动建立 ASCII junction），激活完整的 468 点几何分析；新增 YuNet 人脸检测与 MTCNN 5 关键点兜底分类，检测引擎分层容错
+- **虚拟试戴**：上传照片完成分析后，可在照片上实时叠加试戴推荐眼镜，支持推荐/商城任意切换、换一款联动
 - 模型服务的资源预热、返回结构兜底与推荐契约统一
 - 前端页面初始化、请求封装与交互体验加固
 - 代码注释与文档补全，便于后续协作维护和项目答辩展示
 
 ### 核心功能
 
-- **AI 脸型识别** - 基于 MediaPipe FaceMesh 的 468 个面部关键点几何分析，结合脸长宽比、下颌宽比、额头宽比、下颌角、三庭比例、五眼比例等指标，采用规则分类方式识别脸型；在关键依赖不可用时支持降级处理，保证主流程不中断
+- **AI 脸型识别** - 基于 MediaPipe FaceMesh 的 468 个面部关键点几何分析，结合脸长宽比、下颌宽比、额头宽比、下颌角、三庭比例、五眼比例等指标，采用规则分类方式识别脸型；检测引擎分层容错（MediaPipe 468 点 → YuNet/MTCNN 5 关键点 → 方框启发式），并自动修复 Windows 中文路径导致的原生库无法加载的问题，保证主流程不中断
 - **AI 面部分析报告** - 输出结构化的面部几何指标、中文判定依据与可视化分析结果，便于用户直观理解识别过程
+- **虚拟试戴** - 上传照片完成分析后，可在照片上实时叠加试戴任意眼镜：按 468 关键点定位（眼距定宽、眼线角度旋转），推荐卡片与商城卡片均可一键试戴，"换一款"联动切换；眼镜素材由 AI 抠图生成透明 PNG
 - **智能推荐** - 使用透明规则引擎完成“脸型 -> 镜框”映射，并结合度数、瞳距、折射率等因素进行加权推荐，每条结果都带有可解释的推荐理由
 - **眼镜商城** - 提供商品列表分页、形状筛选、关键词搜索、商品详情页与购物车能力，支持浏览与选购闭环
 - **用户系统** - 支持 JWT 注册登录，推荐记录可与账号关联，便于历史查询和用户运营
@@ -49,14 +52,16 @@
 ### 项目亮点：原创性与核心优势
 
 1. **几何规则脸型分类（零训练数据依赖）** - 采用 MediaPipe FaceMesh 468 个面部关键点进行几何比例分析，结合脸长宽比、下颌宽比、额头宽比、下颌角、三庭五眼等指标完成规则分类；整套阈值和映射关系均由项目自研，无需额外标注数据集。
-2. **可解释规则推荐引擎** - 使用“脸型 -> 镜框映射 + 度数硬过滤 + 折射率 / 瞳距加权打分”的规则引擎生成推荐结果，并为每条推荐保留可读的原因说明，便于用户理解与商家调优。
-3. **AI 面部分析报告** - 除脸型结论外，还输出结构化几何指标、中文判定依据和可视化结果，让用户能直观看到 AI 的分析过程。
-4. **拍照 -> 识别 -> 分析 -> 推荐 -> 选购全闭环** - 将用户上传照片、模型识别、推荐生成、商品选购串成完整流程，前后端和模型服务分层解耦，便于后续扩展。
+2. **检测引擎分层容错（含中文路径自动修复）** - MediaPipe 468 点 → YuNet/MTCNN 5 关键点 → 方框启发式三级降级；并解决 Windows 中文路径下原生库 C++ 层无法读取模型文件的经典问题（自动建 ASCII junction），让完整几何分析在中文环境下真正可用。
+3. **照片实时虚拟试戴** - 复用 468 关键点做眼镜定位（眼距定宽 + 眼线角度旋转 + 小幅下移），配合 AI 抠图透明素材，用户在分析后即可在照片上实时试戴推荐眼镜，无需 GPU、纯前端渲染。
+4. **可解释规则推荐引擎** - 使用“脸型 -> 镜框映射 + 度数硬过滤 + 折射率 / 瞳距加权打分”的规则引擎生成推荐结果，并为每条推荐保留可读的原因说明，便于用户理解与商家调优。
+5. **AI 面部分析报告** - 除脸型结论外，还输出结构化几何指标、中文判定依据和可视化结果，让用户能直观看到 AI 的分析过程。
+6. **拍照 -> 识别 -> 分析 -> 推荐 -> 试戴 -> 选购全闭环** - 将用户上传照片、模型识别、推荐生成、照片试戴、商品选购串成完整流程，前后端和模型服务分层解耦，便于后续扩展。
 
 ### 核心优势
 
 - **开箱即用，无数据门槛** - 不依赖标注数据集与 GPU，克隆即可运行；缺图或关键点不可用时自动降级为默认脸型，主流程不中断。
-- **生产级工程质量** - Docker 三服务编排、GitHub Actions CI（测试 + 镜像构建）、94 个 pytest 用例全绿、JWT 认证、接口限流、安全响应头、loguru 按天轮转日志--远超一般课程 / 大创 demo 的「单脚本跑通」水准。
+- **生产级工程质量** - Docker 三服务编排、GitHub Actions CI（测试 + 镜像构建）、145 个 pytest 用例全绿、JWT 认证、接口限流、安全响应头、loguru 按天轮转日志--远超一般课程 / 大创 demo 的「单脚本跑通」水准。
 - **可解释、可审计** - 推荐结果可追溯每条规则与分值，便于商家调整商品策略，也利于答辩中讲清「AI 如何决策」。
 - **隐私风险可控** - 人脸图片仅在单次请求生命周期内做几何分析、不落库存储生物特征，相对降低了《个人信息保护法》对生物识别信息的合规负担。
 - **工程分层清晰** - 前端（原生 HTML/JS）/ 后端（Flask）/ 模型服务（FastAPI）职责分离，模型服务可独立升级或替换而不影响业务层。
@@ -76,7 +81,7 @@
 ┌─────────────────────────────────────────┐
 │           Frontend (端口 5500)            │
 │   HTML5 / Bootstrap / 原生 JS             │
-│   AI 分析报告 · 商城 · 购物车 · 登录       │
+│   AI 分析报告 · 虚拟试戴 · 商城 · 购物车   │
 └──────────────────┬──────────────────────┘
                    │ REST API (JWT)
 ┌──────────────────▼──────────────────────┐
@@ -94,7 +99,7 @@
 └─────────────────────────────────────────┘
 ```
 
-数据流：用户上传照片 + 验光参数 -> 后端转发 -> 模型服务做脸型识别与推荐 -> 后端落库推荐记录并返回前端 -> 前端展示 AI 分析报告 + Top-N 推荐商品。
+数据流：用户上传照片 + 验光参数 -> 后端转发 -> 模型服务做脸型识别与推荐（返回 468 关键点）-> 后端落库推荐记录并返回前端 -> 前端展示 AI 分析报告 + Top-N 推荐商品，并依据关键点在照片上**实时试戴**推荐眼镜。
 
 ---
 
@@ -124,13 +129,15 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-> MediaPipe 推荐安装 `mediapipe==0.10.14` 以启用 468 点几何脸型识别；缺失时模型服务自动降级为 OpenCV Haar 粗分类（仍可用，精度低）。
+> MediaPipe 推荐安装 `mediapipe==0.10.14` 以启用 468 点几何脸型识别；缺失或不可用时模型服务自动降级为 YuNet/MTCNN 5 关键点分类（仍可用，精度低于几何分析）。
 
 ### 3. 一键启动
 
 **Windows（推荐）**：双击 `start.bat`
 
 `start.bat` 会自动处理一个 Windows 特有的坑：项目路径含中文（如 `D:\丹智慧眼项目\...`）时，MediaPipe 的 C++ 层按 ANSI 解析路径会失败（Python 能看到文件、C++ 打不开 -> `FileNotFoundError`）。脚本检测到非 ASCII 路径时，会在系统盘建一个 ASCII 路径的目录联接（junction）`%SystemDrive%\dzhy_venv` 指向项目 `.venv`，用该联接里的 python 启动，零复制、不污染系统。
+
+> 从任意方式（含手动 `python model_api.py`）启动时，`face_geometry.py` 也会自动完成同样的中文路径修复（自建 `C:\dzhy_mp_ascii` / `C:\dzhy_model_ascii` junction），无需人工干预；YuNet 检测模型（~227KB）会在首次使用时自动下载到 `model/`。
 
 **手动启动**：
 
@@ -179,9 +186,9 @@ docker compose up -d --build
 ├── model_utils.py              # 历史 CNN 结构（已弃用，保留兼容）
 ├── model_train.py              # 历史 CNN 训练脚本（已弃用，保留参考）
 ├── frontend/                   # 前端
-│   ├── index.html              # 首页（AI 分析 + 推荐 + 商城入口）
+│   ├── index.html              # 首页（AI 分析 + 虚拟试戴 + 推荐 + 商城入口）
 │   ├── detail.html             # 商品详情页
-│   ├── app.js                  # 主逻辑（表单/分析报告/商城）
+│   ├── app.js                  # 主逻辑（表单/分析报告/试戴/商城）
 │   ├── common.js               # 共享工具（API/转义/占位图）
 │   ├── cart.js / auth.js       # 购物车 / 登录注册模块
 │   └── style.css
@@ -189,18 +196,20 @@ docker compose up -d --build
 │   ├── glasses_data.csv        # 商品库（推荐引擎读源）
 │   ├── backend.db              # SQLite（商城/后台读写）
 │   ├── glasses_images/         # 商品图片（jpg 真实图 + svg 占位图）
+│   │   └── tryon/              # 虚拟试戴透明素材（AI 抠图生成，入库）
 │   ├── glasses_images_manifest.csv  # 图片署名清单（Wikimedia Commons CC 来源）
 │   ├── glasses_attribution.csv # 完整署名清单（合规用）
 │   └── glasses_labels.csv      # 框型人工标注
 ├── model/                      # 历史模型文件（已弃用，保留兼容）
-├── tests/                      # pytest 套件（94 用例）
-│   ├── test_backend_auth.py    # 认证（8）
-│   ├── test_backend_admin.py   # 管理后台（14）
-│   ├── test_backend_glasses.py # 商品/列表（18）
-│   ├── test_backend_submit.py  # 提交推荐（10）
-│   ├── test_face_geometry.py   # 几何分类（6）
-│   ├── test_recommend_rules.py # 规则推荐（14）
-│   ├── test_model_api.py       # 模型 API（9）
+├── tests/                      # pytest 套件（145 用例）
+│   ├── test_backend_auth.py    # 认证（20）
+│   ├── test_backend_admin.py   # 管理后台（17）
+│   ├── test_backend_glasses.py # 商品/列表（25）
+│   ├── test_backend_submit.py  # 提交推荐（24）
+│   ├── test_integration_flow.py# 端到端集成（注册→登录→提交→落库）（1）
+│   ├── test_face_geometry.py   # 几何分类 + 5 关键点兜底（18）
+│   ├── test_recommend_rules.py # 规则推荐（20）
+│   ├── test_model_api.py       # 模型 API（20）
 │   ├── conftest.py             # fixtures
 │   ├── assets/                 # 测试图片
 │   └── real_glasses_template.csv  # 真实数据导入模板
@@ -210,6 +219,7 @@ docker compose up -d --build
 │   ├── fetch_real_glasses_images.py      # Wikimedia Commons 真实眼镜图抓取
 │   ├── add_specific_commons_files.py     # 补充特定 Commons 文件
 │   ├── make_contact_sheets.py            # 拼接标注用网格图
+│   ├── make_tryon_overlays.py            # rembg AI 抠图生成虚拟试戴透明素材
 │   ├── rebuild_glasses_with_real_images.py  # 按标注+manifest 重建 CSV
 │   └── 眼镜数据爬取代码.py                # 早期爬虫参考
 ├── docs/                       # 项目文档
@@ -247,9 +257,9 @@ docker compose up -d --build
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/predict_face_shape` | 上传图片，返回中文脸型 + 9 项几何指标 + 468 关键点 + 判定依据 |
+| POST | `/predict_face_shape` | 上传图片，返回中文脸型 + 9 项几何指标 + 468 关键点（供前端虚拟试戴定位）+ 判定依据 |
 | POST | `/get_recommendation` | 验光参数+脸型，返回 Top-3 推荐 + 命中规则 + 推荐理由 |
-| GET | `/health` | 健康检查（含 mediapipe 可用性 + 商品库数量） |
+| GET | `/health` | 健康检查（含各检测引擎可用性 mediapipe/yunet/mtcnn + 商品库数量） |
 
 在线文档：启动后访问 `http://localhost:8000/docs`
 
@@ -273,7 +283,7 @@ docker compose up -d --build
 
 ```bash
 python -m pytest tests/ -v
-# 94 个用例：后端认证/提交/列表/admin/限流/安全头 + 几何分类 + 规则推荐 + 模型API
+# 145 个用例：后端认证/提交/列表/admin/限流/安全头/端到端集成 + 几何分类 + 规则推荐 + 模型API
 ```
 
 ---
@@ -302,14 +312,15 @@ python tools/import_real_glasses.py <源文件.csv|.xlsx> [--resync] [--no-svg]
 1. **商品数据双源**：推荐引擎读 `data/glasses_data.csv`，商城/后台读写 SQLite。Admin 增删商品后推荐不会同步（重启模型服务可刷新）。后续可将模型服务改为查询后端接口统一数据源。
 2. **限流为内存存储**：gunicorn 多 worker 下各进程独立计数，严格限流需换 Redis 存储。
 3. **脸型分类阈值为人工调参**：基于几何比例的规则分类在大表情/遮挡/侧脸场景会降级为默认脸型，不影响主流程。
-4. **compose 局域网访问**：以 IP 方式访问前端时，需在 HTML 设置 `data-api-base` 指向后端地址（nginx 反代部署无此问题）。
-5. **商品图片来源**：当前部分商品图来自 Wikimedia Commons（CC BY / CC0 / Public Domain），`data/glasses_attribution.csv` 记录完整署名清单。**公开商用前需替换为自己授权的商品图，或保留署名清单合规展示**。
+4. **虚拟试戴为 2D 近似叠加**：眼镜按"眼距×系数"缩放、眼线角度旋转定位，正脸效果最佳；大角度侧脸/低头会存在偏移（`TRYON_WIDTH_FACTOR` 等常量可调）。眼镜素材由 AI 抠图生成，个别背景复杂的款式可能存在少量残留。
+5. **compose 局域网访问**：以 IP 方式访问前端时，需在 HTML 设置 `data-api-base` 指向后端地址（nginx 反代部署无此问题）。
+6. **商品图片来源**：当前部分商品图来自 Wikimedia Commons（CC BY / CC0 / Public Domain），`data/glasses_attribution.csv` 记录完整署名清单。**公开商用前需替换为自己授权的商品图，或保留署名清单合规展示**。
 
 ---
 
 ## 项目展望
 
-- AR 实时试戴（WebRTC 摄像头流 + Face Mesh）
+- WebRTC 实时 AR 试戴（摄像头视频流 + Face Mesh，在照片试戴基础上实现动态试戴）
 - 推荐算法升级（协同过滤 / 用户行为反馈学习）
 - 真实商品数据对接丹阳企业
 - 微信小程序版本
