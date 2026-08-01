@@ -2,6 +2,12 @@
 // 依赖 common.js（API_BASE / apiRequest / resolveImageUrl / setImgFallback / showToast）
 // 依赖 cart.js（addToCart）
 
+// ==================== 虚拟试戴（调参入口） ====================
+const TRYON_WIDTH_FACTOR = 2.4;      // 眼镜宽 = 双眼外角距 × 系数
+const TRYON_VERTICAL_OFFSET = 0.04;  // 眼镜整体下移比例（相对眼镜高度，正值向下）
+let _faceLandmarks = [];             // 最近一次分析返回的 468 归一化关键点
+const _tryonImgCache = {};           // 眼镜 PNG 内存缓存，避免重复加载
+
 // ==================== 页面初始化 ====================
 document.addEventListener('DOMContentLoaded', function () {
     // 页脚年份动态更新
@@ -48,6 +54,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     preview.src = e.target.result;
                     preview.style.display = 'block';
                 }
+                // 换了新照片：旧脸型的关键点已失效，清空试戴与关键点叠加
+                _faceLandmarks = [];
+                const lmCanvas = document.getElementById('face-landmarks');
+                const tryCanvas = document.getElementById('tryon-canvas');
+                [lmCanvas, tryCanvas].forEach(function (c) {
+                    if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+                });
+                const tryonNote = document.getElementById('tryon-note');
+                if (tryonNote) tryonNote.classList.add('d-none');
+                document.querySelectorAll('.glass-card.tryon-active').forEach(function (c) {
+                    c.classList.remove('tryon-active');
+                });
             };
             reader.readAsDataURL(file);
         });
@@ -105,10 +123,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (result.code === 200) {
                     const payload = result.data || {};
                     const recs = payload.recommendation || [];
+                    _faceLandmarks = payload.landmarks || [];
                     renderFaceReport(payload);
                     if (payload.landmarks && payload.landmarks.length) drawLandmarks(payload.landmarks);
                     matchProgress.style.width = recs.length === 0 ? '0%' : '92%';
                     loadRecommendedGlasses(recs);
+                    if (recs.length > 0) renderTryOn(recs[0]);   // 自动试戴推荐第 1 款
                     if (recs.length === 0) showToast('未找到合适的镜框', 'warning');
                 } else {
                     showToast('错误：' + (result.msg || '分析失败'), 'danger');
@@ -135,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
             window._currentIndex = window._currentIndex || 0;
             window._currentIndex = (window._currentIndex + 1) % recs.length;
             const glass = recs[window._currentIndex];
+            renderTryOn(glass);   // 换款同时切换试戴
             showToast('已切换至：' + (glass.name || glass.frame_shape + '眼镜'), 'success');
             const products = document.getElementById('products');
             if (products) products.scrollIntoView({ behavior: 'smooth' });
@@ -233,6 +254,85 @@ function drawLandmarks(landmarks) {
     }
 }
 
+// ==================== 虚拟试戴 ====================
+
+function tryOnUrl(glassesId) {
+    // 抠图素材路径：/static/glasses/<id>.jpg → /static/glasses/tryon/<id>.png
+    return API_BASE + '/static/glasses/tryon/' + encodeURIComponent(glassesId) + '.png';
+}
+
+function renderTryOn(glass) {
+    const canvas = document.getElementById('tryon-canvas');
+    const preview = document.getElementById('face-preview');
+    if (!canvas || !preview || preview.style.display !== 'block') {
+        showToast('请先上传照片并完成AI分析', 'info');
+        return;
+    }
+    const gid = glass && glass.glasses_id;
+    if (!gid) return;
+
+    const draw = (img) => {
+        drawTryOn(preview, canvas, img);
+        highlightTryonCard(gid);
+        const tryonNote = document.getElementById('tryon-note');
+        if (tryonNote) tryonNote.classList.remove('d-none');
+    };
+    if (_tryonImgCache[gid]) { draw(_tryonImgCache[gid]); return; }
+
+    const img = new Image();
+    // CORS 加载，保持 canvas 干净（可截图导出；后端 Flask-CORS 允许前端源）
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { _tryonImgCache[gid] = img; draw(img); };
+    img.onerror = () => {
+        drawTryOn(preview, canvas, null);
+        showToast('该款暂无试戴素材，请换一款', 'info');
+    };
+    img.src = tryOnUrl(gid);
+}
+
+function drawTryOn(preview, canvas, img) {
+    const w = preview.clientWidth;
+    const h = preview.clientHeight;
+    if (!w || !h) return;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    if (!img) return;
+
+    const lm = _faceLandmarks;
+    let W, H, cx, cy, angle = 0;
+    // 有 468 关键点 → 按双眼外角（33/263）定位：宽=眼距×系数，旋转对齐眼线
+    if (lm && lm.length > 263 && lm[33] && lm[263]) {
+        const lx = lm[33][0] * w, ly = lm[33][1] * h;
+        const rx = lm[263][0] * w, ry = lm[263][1] * h;
+        const eyeDist = Math.hypot(rx - lx, ry - ly);
+        if (eyeDist > 1) {
+            cx = (lx + rx) / 2;
+            cy = (ly + ry) / 2;
+            angle = Math.atan2(ry - ly, rx - lx);
+            W = eyeDist * TRYON_WIDTH_FACTOR;
+            H = W * (img.height / img.width);
+        } else { cx = w / 2; cy = h * 0.35; W = w * 0.6; H = W * (img.height / img.width); }
+    } else {
+        // 无关键点（兜底路径）→ 居中放置
+        cx = w / 2; cy = h * 0.35; W = w * 0.6; H = W * (img.height / img.width);
+    }
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.drawImage(img, -W / 2, -H / 2 + H * TRYON_VERTICAL_OFFSET, W, H);
+    ctx.restore();
+}
+
+function highlightTryonCard(glassesId) {
+    const id = String(glassesId);
+    document.querySelectorAll('.glass-card').forEach(function (card) {
+        const btn = card.querySelector('[data-tryon-id]');
+        card.classList.toggle('tryon-active', btn && btn.getAttribute('data-tryon-id') === id);
+    });
+}
+
 function loadRecommendedGlasses(recommendations) {
     const container = document.getElementById('recommended-glasses');
     container.textContent = '';
@@ -304,6 +404,16 @@ function loadRecommendedGlasses(recommendations) {
         detailBtn.textContent = '查看详情';
         detailBtn.href = 'detail.html?glasses_id=' + encodeURIComponent(glass.glasses_id);
         btnGroup.appendChild(detailBtn);
+
+        const tryBtn = document.createElement('button');
+        tryBtn.className = 'btn btn-sm btn-tryon';
+        tryBtn.innerHTML = '<i class="fas fa-glasses"></i> 试戴';
+        tryBtn.title = '在照片上试戴该镜框';
+        tryBtn.setAttribute('data-tryon-id', glass.glasses_id);
+        tryBtn.addEventListener('click', function () {
+            renderTryOn(glass);
+        });
+        btnGroup.appendChild(tryBtn);
 
         const cartBtn = document.createElement('button');
         cartBtn.className = 'btn btn-sm btn-outline-primary';
@@ -448,6 +558,17 @@ function renderShopGlasses(items) {
         detailLink.textContent = '详情';
         detailLink.href = 'detail.html?glasses_id=' + encodeURIComponent(glass.glasses_id);
         btnGroup.appendChild(detailLink);
+
+        // 试戴（需先完成 AI 分析）
+        const tryBtn = document.createElement('button');
+        tryBtn.className = 'btn btn-sm btn-tryon';
+        tryBtn.innerHTML = '<i class="fas fa-glasses"></i> 试戴';
+        tryBtn.title = '在已上传照片上试戴该镜框';
+        tryBtn.setAttribute('data-tryon-id', glass.glasses_id);
+        tryBtn.addEventListener('click', function () {
+            renderTryOn(glass);
+        });
+        btnGroup.appendChild(tryBtn);
 
         // 加入购物车
         const cartBtn = document.createElement('button');
